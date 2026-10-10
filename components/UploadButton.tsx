@@ -1,0 +1,78 @@
+"use client";
+
+import { useId, useState } from "react";
+import { useRouter } from "next/navigation";
+import { store } from "@/lib/store";
+import type { ResumeProfile } from "@/lib/types";
+
+export async function uploadResume(file: File): Promise<ResumeProfile> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/resume", { method: "POST", body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Upload failed. Please try again.");
+  return data as ResumeProfile;
+}
+
+export function UploadButton({
+  label = "Start my free practice",
+  variant = "dark",
+}: {
+  label?: string;
+  variant?: "dark" | "light";
+}) {
+  const id = useId();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const profile = await uploadResume(file);
+      store.setProfile(profile);
+      store.setReport(null);
+      router.push("/setup");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className={`btn ${variant === "dark" ? "btn-dark" : "btn-light"}`}
+        style={{ minHeight: 60, fontSize: 18, maxWidth: 360, width: "100%", cursor: busy ? "progress" : "pointer" }}
+        aria-busy={busy}
+      >
+        {busy ? (
+          <>
+            <span className={`spinner ${variant === "light" ? "spinner-dark" : ""}`} aria-hidden />
+            Reading your resume...
+          </>
+        ) : (
+          <>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 16V4" />
+              <path d="M7 9l5-5 5 5" />
+              <path d="M4 20h16" />
+            </svg>
+            {label}
+          </>
+        )}
+      </label>
+      <input id={id} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onFile} disabled={busy} />
+      {error && (
+        <p className="error" role="alert" style={{ marginTop: 12, maxWidth: 480 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

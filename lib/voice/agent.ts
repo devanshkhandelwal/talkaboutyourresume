@@ -1,0 +1,196 @@
+"use client";
+
+import type { TranscriptLine } from "../types";
+
+export type AgentStatus =
+  | "connecting"
+  | "listening"
+  | "speaking"
+  | "thinking"
+  | "muted"
+  | "ended"
+  | "error";
+
+export type AgentEvents = {
+  onStatus: (s: AgentStatus) => void;
+  onLine: (line: TranscriptLine) => void;
+  onError: (message: string) => void;
+};
+
+const AGENT_URL = "wss://agent.deepgram.com/v1/agent/converse";
+const OUTPUT_RATE = 24000;
+
+/**
+ * Thin wrapper around Deepgram's Voice Agent websocket.
+ * Mic audio goes up as 16 kHz linear16; the interviewer's voice comes
+ * back as 24 kHz linear16 and is scheduled for gapless playback.
+ */
+export class InterviewAgent {
+  private ws: WebSocket | null = null;
+  private ctx: AudioContext | null = null;
+  private mic: MediaStream | null = null;
+  private node: AudioWorkletNode | null = null;
+  private playhead = 0;
+  private playing = new Set<AudioBufferSourceNode>();
+  private keepAlive: ReturnType<typeof setInterval> | null = null;
+  private muted = false;
+  private agentSpeaking = false;
+  private ended = false;
+
+  constructor(private events: AgentEvents) {}
+
+  async start(token: string, settings: unknown) {
+    this.events.onStatus("connecting");
+
+    this.mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+    });
+    this.ctx = new AudioContext();
+    await this.ctx.resume();
+    await this.ctx.audioWorklet.addModule("/mic-processor.js");
+    const source = this.ctx.createMediaStreamSource(this.mic);
+    this.node = new AudioWorkletNode(this.ctx, "mic-processor");
+    source.connect(this.node);
+    // The worklet must be pulled by the graph; route it to a silent gain.
+    const sink = this.ctx.createGain();
+    sink.gain.value = 0;
+    this.node.connect(sink).connect(this.ctx.destination);
+
+    // Temporary tokens from /v1/auth/grant use the "bearer" subprotocol.
+    const ws = new WebSocket(AGENT_URL, ["bearer", token]);
+    ws.binaryType = "arraybuffer";
+    this.ws = ws;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify(settings));
+      this.keepAlive = setInterval(() => this.sendJson({ type: "KeepAlive" }), 8000);
+    };
+
+    ws.onmessage = (ev) => {
+      if (typeof ev.data === "string") this.handleMessage(ev.data);
+      else this.playChunk(ev.data as ArrayBuffer);
+    };
+
+    ws.onerror = () => {
+      if (!this.ended) this.events.onError("Lost connection to the interviewer.");
+    };
+
+    ws.onclose = (ev) => {
+      if (!this.ended) {
+        this.events.onError(ev.code === 1008 || ev.code === 4001 ? "The session couldn't be authorized." : "The interview connection closed.");
+        this.events.onStatus("error");
+      }
+    };
+
+    this.node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
+      if (this.muted || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(ev.data);
+    };
+  }
+
+  private sendJson(msg: unknown) {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+  }
+
+  private handleMessage(raw: string) {
+    let msg: { type?: string; role?: "user" | "assistant"; content?: string; description?: string };
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    switch (msg.type) {
+      case "SettingsApplied":
+        this.events.onStatus(this.muted ? "muted" : "listening");
+        break;
+      case "ConversationText":
+        if (msg.role && msg.content) this.events.onLine({ role: msg.role, content: msg.content });
+        break;
+      case "UserStartedSpeaking":
+        // Barge-in: the candidate talked over the interviewer, so stop playback.
+        this.stopPlayback();
+        this.agentSpeaking = false;
+        this.events.onStatus(this.muted ? "muted" : "listening");
+        break;
+      case "AgentThinking":
+        this.events.onStatus("thinking");
+        break;
+      case "AgentStartedSpeaking":
+        this.agentSpeaking = true;
+        this.events.onStatus("speaking");
+        break;
+      case "AgentAudioDone": {
+        // Audio may still be queued locally; flip back once it has played.
+        const wait = Math.max(0, (this.playhead - (this.ctx?.currentTime ?? 0)) * 1000);
+        setTimeout(() => {
+          this.agentSpeaking = false;
+          if (!this.ended) this.events.onStatus(this.muted ? "muted" : "listening");
+        }, wait);
+        break;
+      }
+      case "Error":
+        this.events.onError(msg.description || "The voice service reported an error.");
+        break;
+    }
+  }
+
+  private playChunk(buf: ArrayBuffer) {
+    if (!this.ctx || buf.byteLength < 2) return;
+    const pcm = new Int16Array(buf, 0, Math.floor(buf.byteLength / 2));
+    const audio = this.ctx.createBuffer(1, pcm.length, OUTPUT_RATE);
+    const data = audio.getChannelData(0);
+    for (let i = 0; i < pcm.length; i++) data[i] = pcm[i] / 0x8000;
+    const src = this.ctx.createBufferSource();
+    src.buffer = audio;
+    src.connect(this.ctx.destination);
+    const now = this.ctx.currentTime;
+    this.playhead = Math.max(this.playhead, now + 0.03);
+    src.start(this.playhead);
+    this.playhead += audio.duration;
+    this.playing.add(src);
+    src.onended = () => this.playing.delete(src);
+  }
+
+  private stopPlayback() {
+    for (const s of this.playing) {
+      try {
+        s.stop();
+      } catch {
+        // already stopped
+      }
+    }
+    this.playing.clear();
+    this.playhead = this.ctx?.currentTime ?? 0;
+  }
+
+  setMuted(muted: boolean) {
+    this.muted = muted;
+    this.mic?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+    if (!this.agentSpeaking) this.events.onStatus(muted ? "muted" : "listening");
+  }
+
+  /** Swap the system prompt mid-interview, e.g. to start wrapping up. */
+  updatePrompt(prompt: string) {
+    this.sendJson({ type: "UpdatePrompt", prompt });
+  }
+
+  /** Have the interviewer say a specific line now. */
+  say(message: string) {
+    this.sendJson({ type: "InjectAgentMessage", message });
+  }
+
+  stop() {
+    this.ended = true;
+    if (this.keepAlive) clearInterval(this.keepAlive);
+    this.stopPlayback();
+    this.node?.disconnect();
+    this.mic?.getTracks().forEach((t) => t.stop());
+    try {
+      this.ws?.close(1000);
+    } catch {
+      // ignore
+    }
+    void this.ctx?.close();
+    this.events.onStatus("ended");
+  }
+}
