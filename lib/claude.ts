@@ -16,30 +16,33 @@ export const MODELS = {
 };
 
 /**
- * Asks Claude for a JSON object. The reply comes back through a forced tool call,
+ * Asks Claude for a JSON object. The reply comes back through a tool call,
  * so the API hands us a parsed object instead of text we have to parse ourselves
- * (free-text JSON broke on raw newlines and stray comments). The shape is described
- * in the system prompt.
+ * (free-text JSON broke on raw newlines and stray comments). Each caller supplies
+ * the JSON Schema for the result.
  */
 export async function askJson<T>(opts: {
   model: string;
   system: string;
   user: string;
+  /** JSON Schema for the result object. */
+  schema: Record<string, unknown>;
   maxTokens?: number;
 }): Promise<T> {
   const res = await claude().messages.create({
     model: opts.model,
     max_tokens: opts.maxTokens ?? 2000,
-    system: opts.system,
+    system: `${opts.system}\n\nDeliver your answer by calling the \`respond\` tool exactly once. Do not reply with text.`,
     messages: [{ role: "user", content: opts.user }],
     tools: [
       {
         name: "respond",
-        description: "Return the result as a JSON object with the shape described in the system prompt.",
-        input_schema: { type: "object", additionalProperties: true },
+        description: "Return the result.",
+        input_schema: opts.schema as Anthropic.Tool.InputSchema,
       },
     ],
-    tool_choice: { type: "tool", name: "respond" },
+    // Not forced: some models (e.g. Sonnet 5.5) reject tool_choice "tool" / "any".
+    tool_choice: { type: "auto" },
   });
   if (res.stop_reason === "max_tokens") throw new Error("Model reply was cut off (max_tokens)");
   const block = res.content.find((b) => b.type === "tool_use");
