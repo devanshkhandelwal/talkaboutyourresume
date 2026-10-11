@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SiteHeader } from "@/components/Chrome";
 import { getInterviewer } from "@/lib/interviewers";
 import { store } from "@/lib/store";
+import { recording } from "@/lib/voice/recording";
 import type { FeedbackReport, InterviewSession } from "@/lib/types";
 
 const CHIP = { strong: "chip-strong", needs_detail: "chip-detail", vague: "chip-vague" } as const;
@@ -18,6 +19,7 @@ function duration(s: InterviewSession) {
 
 export default function FeedbackPage() {
   const router = useRouter();
+  const audio = useSyncExternalStore(recording.subscribe, recording.get, () => null);
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [report, setReport] = useState<FeedbackReport | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -74,6 +76,16 @@ export default function FeedbackPage() {
     const a = document.createElement("a");
     a.href = url;
     a.download = "interview-transcript.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadAudio() {
+    if (!audio) return;
+    const url = URL.createObjectURL(audio.blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `interview-audio.${audio.ext}`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -211,9 +223,17 @@ export default function FeedbackPage() {
                 <strong>{l.role === "user" ? "You" : "Interviewer"}:</strong> <span className="muted">{l.content}</span>
               </p>
             ))}
-            <button className="btn btn-light btn-sm" style={{ alignSelf: "flex-start" }} onClick={downloadTranscript}>
-              Download transcript
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn btn-light btn-sm" onClick={downloadTranscript}>
+                Download transcript
+              </button>
+              {audio && (
+                <button className="btn btn-light btn-sm" onClick={downloadAudio}>
+                  Download audio
+                </button>
+              )}
+            </div>
+            {audio && <p className="muted" style={{ margin: 0, fontSize: "0.875rem" }}>Audio isn&apos;t saved anywhere. Download it now, because it&apos;s gone when you leave or refresh this page.</p>}
           </div>
         </details>
 

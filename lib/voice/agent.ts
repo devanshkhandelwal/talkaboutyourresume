@@ -1,6 +1,7 @@
 "use client";
 
 import type { TranscriptLine } from "../types";
+import { recording } from "./recording";
 
 export type AgentStatus =
   | "connecting"
@@ -36,6 +37,9 @@ export class InterviewAgent {
   private muted = false;
   private agentSpeaking = false;
   private ended = false;
+  private recDest: MediaStreamAudioDestinationNode | null = null;
+  private recorder: MediaRecorder | null = null;
+  private recChunks: Blob[] = [];
 
   constructor(private events: AgentEvents) {}
 
@@ -55,6 +59,8 @@ export class InterviewAgent {
     const sink = this.ctx.createGain();
     sink.gain.value = 0;
     this.node.connect(sink).connect(this.ctx.destination);
+
+    this.startRecording(source);
 
     // Temporary tokens from /v1/auth/grant use the "bearer" subprotocol.
     const ws = new WebSocket(AGENT_URL, ["bearer", token]);
@@ -86,6 +92,34 @@ export class InterviewAgent {
       if (this.muted || ws.readyState !== WebSocket.OPEN) return;
       ws.send(ev.data);
     };
+  }
+
+  /** Records the mic and the interviewer's voice as one track, in memory only. */
+  private startRecording(micSource: MediaStreamAudioSourceNode) {
+    recording.set(null);
+    if (!this.ctx || typeof MediaRecorder === "undefined") return;
+    try {
+      this.recDest = this.ctx.createMediaStreamDestination();
+      micSource.connect(this.recDest);
+      const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((m) => MediaRecorder.isTypeSupported(m));
+      const rec = new MediaRecorder(this.recDest.stream, mime ? { mimeType: mime } : undefined);
+      this.recChunks = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) this.recChunks.push(e.data);
+      };
+      rec.onstop = () => {
+        if (this.recChunks.length === 0) return;
+        const type = rec.mimeType || mime || "audio/webm";
+        recording.set({ blob: new Blob(this.recChunks, { type }), ext: type.includes("mp4") ? "m4a" : "webm" });
+        this.recChunks = [];
+      };
+      rec.start(1000);
+      this.recorder = rec;
+    } catch {
+      // Recording is a bonus; the interview works without it.
+      this.recDest = null;
+      this.recorder = null;
+    }
   }
 
   private sendJson(msg: unknown) {
@@ -143,6 +177,7 @@ export class InterviewAgent {
     const src = this.ctx.createBufferSource();
     src.buffer = audio;
     src.connect(this.ctx.destination);
+    if (this.recDest) src.connect(this.recDest);
     const now = this.ctx.currentTime;
     this.playhead = Math.max(this.playhead, now + 0.03);
     src.start(this.playhead);
@@ -184,6 +219,7 @@ export class InterviewAgent {
     if (this.keepAlive) clearInterval(this.keepAlive);
     this.stopPlayback();
     this.node?.disconnect();
+    if (this.recorder?.state === "recording") this.recorder.stop();
     this.mic?.getTracks().forEach((t) => t.stop());
     try {
       this.ws?.close(1000);

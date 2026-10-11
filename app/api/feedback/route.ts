@@ -24,6 +24,32 @@ Return only JSON:
 }
 Be honest but kind. Never invent things they did not say. If the transcript is too short to judge, return an empty answers array and say so in the summary.`;
 
+const SCHEMA = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    bestMoment: {
+      type: ["object", "null"],
+      properties: { quote: { type: "string" }, why: { type: "string" } },
+      required: ["quote", "why"],
+    },
+    answers: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          verdict: { type: "string", enum: ["strong", "needs_detail", "vague"] },
+          tip: { type: "string" },
+        },
+        required: ["title", "verdict", "tip"],
+      },
+    },
+    weakestIndex: { type: ["integer", "null"] },
+  },
+  required: ["summary", "bestMoment", "answers", "weakestIndex"],
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { transcript, profile } = (await req.json()) as {
@@ -43,6 +69,7 @@ export async function POST(req: NextRequest) {
       model: MODELS.feedback,
       system: SYSTEM,
       user: `<resume_topics>\n${topics}\n</resume_topics>\n\n<transcript>\n${lines}\n</transcript>`,
+      schema: SCHEMA,
       maxTokens: 2000,
     });
 

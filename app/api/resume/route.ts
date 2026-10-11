@@ -39,6 +39,24 @@ Return only JSON with this shape:
 }
 Prefer claims with numbers, ownership, or outcomes. Include at least one people or teamwork topic if the resume supports it.`;
 
+const SCHEMA = {
+  type: "object",
+  properties: {
+    name: { type: ["string", "null"] },
+    headline: { type: "string" },
+    topics: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { title: { type: "string" }, claim: { type: "string" }, probe: { type: "string" } },
+        required: ["title", "claim", "probe"],
+      },
+    },
+    flags: { type: "array", items: { type: "string" } },
+  },
+  required: ["name", "headline", "topics", "flags"],
+};
+
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -67,6 +85,7 @@ export async function POST(req: NextRequest) {
       model: MODELS.resume,
       system: SYSTEM,
       user: `<resume>\n${text}\n</resume>`,
+      schema: SCHEMA,
       maxTokens: 1500,
     });
 
