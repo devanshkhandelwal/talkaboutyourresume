@@ -15,7 +15,12 @@ export const MODELS = {
   feedback: process.env.ANTHROPIC_FEEDBACK_MODEL || "claude-sonnet-5-5",
 };
 
-/** Asks Claude for JSON and parses the first JSON object in the reply. */
+/**
+ * Asks Claude for a JSON object. The reply comes back through a forced tool call,
+ * so the API hands us a parsed object instead of text we have to parse ourselves
+ * (free-text JSON broke on raw newlines and stray comments). The shape is described
+ * in the system prompt.
+ */
 export async function askJson<T>(opts: {
   model: string;
   system: string;
@@ -27,12 +32,17 @@ export async function askJson<T>(opts: {
     max_tokens: opts.maxTokens ?? 2000,
     system: opts.system,
     messages: [{ role: "user", content: opts.user }],
+    tools: [
+      {
+        name: "respond",
+        description: "Return the result as a JSON object with the shape described in the system prompt.",
+        input_schema: { type: "object", additionalProperties: true },
+      },
+    ],
+    tool_choice: { type: "tool", name: "respond" },
   });
-  const text = res.content
-    .map((b) => (b.type === "text" ? b.text : ""))
-    .join("");
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("Model did not return JSON");
-  return JSON.parse(text.slice(start, end + 1)) as T;
+  if (res.stop_reason === "max_tokens") throw new Error("Model reply was cut off (max_tokens)");
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use") throw new Error("Model did not return JSON");
+  return block.input as T;
 }
