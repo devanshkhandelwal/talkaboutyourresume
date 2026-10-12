@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
+import { MicLevel } from "@/components/MicLevel";
 import { getInterviewer } from "@/lib/interviewers";
 import { WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
 import { store } from "@/lib/store";
@@ -262,6 +263,7 @@ export default function InterviewPage() {
             <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, color: "#e6e6ea" }} aria-live="polite">
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: muted ? "#c4c4cc" : "#3dd6b8" }} />
               {statusText}
+              {phase === "live" && !muted && <MicLevel read={() => agentRef.current?.inputLevel() ?? 0} />}
             </p>
           )}
 
