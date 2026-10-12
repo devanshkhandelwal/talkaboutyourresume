@@ -44,23 +44,23 @@ const LOOKS: Record<string, Look> = {
   },
 };
 
-const MOUTH_FRAMES: [number, number][] = [[5, 2.5], [6.2, 4.2], [4.5, 3], [6.8, 5.2], [5.2, 1.8]];
-
 export function Avatar({
   character,
   size = 64,
   talking = false,
-  frame = 0,
+  open = 0,
   decorative = false,
 }: {
   character: string;
   size?: number;
   talking?: boolean;
-  frame?: number;
+  /** How open the mouth is while talking, 0 to 1 (driven by the voice's loudness). */
+  open?: number;
   decorative?: boolean;
 }) {
   const l = LOOKS[character] ?? LOOKS.manager;
-  const [rx, ry] = MOUTH_FRAMES[Math.abs(frame) % MOUTH_FRAMES.length];
+  const rx = 4.6 + 2.4 * open;
+  const ry = 1.2 + 4.2 * open;
   return (
     <svg
       width={size}

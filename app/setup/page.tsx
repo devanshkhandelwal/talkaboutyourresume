@@ -89,7 +89,7 @@ export default function SetupPage() {
 
         <div className="card" style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 16, padding: "12px 12px 12px 16px", borderRadius: 18, maxWidth: "100%" }}>
           <span style={{ width: 44, height: 44, borderRadius: 12, background: "var(--warm-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8A3412" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--warm-ink)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
               <path d="M14 3v5h5" />
               <path d="M9 13h6" />
@@ -98,14 +98,14 @@ export default function SetupPage() {
           </span>
           <span style={{ minWidth: 0 }}>
             <span style={{ display: "block", fontWeight: 700, overflowWrap: "anywhere" }}>{profile.fileName}</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "#0b5c51" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0B5C51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--good-ink)" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M5 12l5 5L20 7" />
               </svg>
               {replacing ? "Reading..." : "Read and ready"}
             </span>
           </span>
-          <label htmlFor={replaceId} className="btn btn-light btn-sm" style={{ background: "var(--bg)" }}>
+          <label htmlFor={replaceId} className="btn btn-light btn-sm upload-btn" style={{ background: "var(--bg)" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M21 12a9 9 0 1 1-3-6.7" />
               <path d="M21 4v5h-5" />
@@ -137,16 +137,16 @@ export default function SetupPage() {
                   aria-pressed={on}
                   onClick={() => setPicked(i.id)}
                   style={{
-                    textAlign: "left", cursor: "pointer", padding: 18, borderRadius: 18, background: "#fff",
+                    textAlign: "left", cursor: "pointer", padding: 18, borderRadius: 18, background: "var(--card)", color: "var(--ink)",
                     display: "flex", flexDirection: "column", alignItems: "flex-start",
                     border: `2px solid ${on ? "var(--ink)" : "var(--line)"}`,
-                    boxShadow: on ? "0 12px 28px -18px rgba(22,22,26,0.5)" : "none",
+                    boxShadow: on ? "0 12px 28px -18px rgba(var(--shadow-rgb), 0.5)" : "none",
                   }}
                 >
                   <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                     <Avatar character={i.id} size={64} decorative />
                     {i.pro && (
-                      <span style={{ padding: "3px 9px", borderRadius: 999, background: "#f3f3f5", color: "var(--ink-2)", fontSize: 12, fontWeight: 700 }}>Pro</span>
+                      <span style={{ padding: "3px 9px", borderRadius: 999, background: "var(--card-2)", color: "var(--ink-2)", fontSize: 12, fontWeight: 700 }}>Pro</span>
                     )}
                   </span>
                   <span style={{ marginTop: 14, fontWeight: 700, fontSize: "1.0625rem" }}>{i.name}</span>
@@ -181,7 +181,7 @@ export default function SetupPage() {
                 key={q.label}
                 type="button"
                 onClick={() => setNote((n) => (n.trim() ? n.trimEnd() + "\n" : "") + q.text)}
-                style={{ minHeight: 36, padding: "0 14px", borderRadius: 999, border: "1px solid var(--line-2)", background: "#fff", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                style={{ minHeight: 36, padding: "0 14px", borderRadius: 999, border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
               >
                 {q.label}
               </button>
@@ -191,7 +191,7 @@ export default function SetupPage() {
 
         <section
           aria-label="Your interview"
-          style={{ marginTop: 48, padding: 24, borderRadius: 24, background: "#fff", border: "2px solid var(--ink)", boxShadow: "0 24px 48px -32px rgba(22,22,26,0.45)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}
+          style={{ marginTop: 48, padding: 24, borderRadius: 24, background: "var(--card)", border: "2px solid var(--ink)", boxShadow: "0 24px 48px -32px rgba(var(--shadow-rgb), 0.45)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}
         >
           <Avatar character={chosen.id} size={72} decorative />
           <div style={{ flex: "1 1 240px", minWidth: 0 }}>
