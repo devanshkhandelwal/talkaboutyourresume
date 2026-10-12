@@ -48,11 +48,12 @@ app/
   api/session           Limits, Deepgram temporary token, builds the interviewer's Settings
   api/feedback          Transcript → Claude → feedback report
   api/waitlist          Saves emails (Upstash, or logs if not configured)
+  api/deepgram-balance  Public beta credits badge (Deepgram balance, cached 60 s)
 lib/
   interviewers.ts       The six personalities, voices and greetings  ← tune these most
   prompts.ts            The interviewer system prompt and follow-up rules
   voice/agent.ts        Browser side of the Deepgram websocket (mic in, voice out, barge-in)
-  config.ts             BETA flag, free minutes, Pro price
+  config.ts             BETA flag, free minutes, Pro price, cost per interview estimate
 components/Avatar.tsx   Placeholder faces with talking mouth frames
 public/mic-processor.js Mic → 16 kHz PCM on the audio thread
 ```

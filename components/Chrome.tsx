@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CreditsBadge } from "./CreditsBadge";
 
 export function SiteHeader({ right }: { right?: React.ReactNode }) {
   return (
@@ -6,7 +7,10 @@ export function SiteHeader({ right }: { right?: React.ReactNode }) {
       <Link href="/" className="wordmark">
         talkaboutyourresume
       </Link>
-      {right}
+      <div className="site-header-right">
+        <CreditsBadge />
+        {right}
+      </div>
     </header>
   );
 }

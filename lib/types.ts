@@ -47,3 +47,11 @@ export type InterviewSession = {
   endedAt?: number;
   transcript: TranscriptLine[];
 };
+
+/** Public response of /api/deepgram-balance. */
+export type BalanceResponse = {
+  remaining: number;
+  /** Lowercased, e.g. "usd" */
+  units: string;
+  estInterviewsLeft: number;
+};
