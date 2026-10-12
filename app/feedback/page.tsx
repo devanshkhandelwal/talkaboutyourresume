@@ -20,6 +20,16 @@ function duration(s: InterviewSession) {
 export default function FeedbackPage() {
   const router = useRouter();
   const audio = useSyncExternalStore(recording.subscribe, recording.get, () => null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!audio) {
+      setAudioUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(audio.blob);
+    setAudioUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [audio]);
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [report, setReport] = useState<FeedbackReport | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -81,13 +91,11 @@ export default function FeedbackPage() {
   }
 
   function downloadAudio() {
-    if (!audio) return;
-    const url = URL.createObjectURL(audio.blob);
+    if (!audio || !audioUrl) return;
     const a = document.createElement("a");
-    a.href = url;
+    a.href = audioUrl;
     a.download = `interview-audio.${audio.ext}`;
     a.click();
-    URL.revokeObjectURL(url);
   }
 
   function retry(title: string, tip: string) {
@@ -129,6 +137,20 @@ export default function FeedbackPage() {
             <strong style={{ color: "var(--ink)" }}>Interview complete.</strong> {duration(session)} with {interviewer.name}.
           </p>
         </div>
+
+        {audioUrl && (
+          <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <audio controls src={audioUrl} style={{ flex: "1 1 260px", maxWidth: "100%" }} />
+              <button className="btn btn-light btn-sm" onClick={downloadAudio}>
+                Download audio
+              </button>
+            </div>
+            <p className="muted" style={{ margin: 0, fontSize: "0.875rem" }}>
+              Your recording stays in this tab and isn&apos;t saved anywhere. Download it now if you want to keep it.
+            </p>
+          </div>
+        )}
 
         <h1 className="display" style={{ marginTop: 28, fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
           {tooShort ? "That was a short one." : "Nice work. Here's how it went."}
@@ -223,17 +245,9 @@ export default function FeedbackPage() {
                 <strong>{l.role === "user" ? "You" : "Interviewer"}:</strong> <span className="muted">{l.content}</span>
               </p>
             ))}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn btn-light btn-sm" onClick={downloadTranscript}>
-                Download transcript
-              </button>
-              {audio && (
-                <button className="btn btn-light btn-sm" onClick={downloadAudio}>
-                  Download audio
-                </button>
-              )}
-            </div>
-            {audio && <p className="muted" style={{ margin: 0, fontSize: "0.875rem" }}>Audio isn&apos;t saved anywhere. Download it now, because it&apos;s gone when you leave or refresh this page.</p>}
+            <button className="btn btn-light btn-sm" style={{ alignSelf: "flex-start" }} onClick={downloadTranscript}>
+              Download transcript
+            </button>
           </div>
         </details>
 

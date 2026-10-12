@@ -97,7 +97,10 @@ export class InterviewAgent {
   /** Records the mic and the interviewer's voice as one track, in memory only. */
   private startRecording(micSource: MediaStreamAudioSourceNode) {
     recording.set(null);
-    if (!this.ctx || typeof MediaRecorder === "undefined") return;
+    if (!this.ctx || typeof MediaRecorder === "undefined") {
+      console.warn("[recording] MediaRecorder isn't available in this browser; no audio will be saved.");
+      return;
+    }
     try {
       this.recDest = this.ctx.createMediaStreamDestination();
       micSource.connect(this.recDest);
@@ -107,16 +110,21 @@ export class InterviewAgent {
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) this.recChunks.push(e.data);
       };
+      rec.onerror = (e) => console.warn("[recording] recorder error", e);
       rec.onstop = () => {
-        if (this.recChunks.length === 0) return;
+        if (this.recChunks.length === 0) {
+          console.warn("[recording] recorder stopped with no audio data.");
+          return;
+        }
         const type = rec.mimeType || mime || "audio/webm";
         recording.set({ blob: new Blob(this.recChunks, { type }), ext: type.includes("mp4") ? "m4a" : "webm" });
         this.recChunks = [];
       };
       rec.start(1000);
       this.recorder = rec;
-    } catch {
+    } catch (err) {
       // Recording is a bonus; the interview works without it.
+      console.warn("[recording] couldn't start", err);
       this.recDest = null;
       this.recorder = null;
     }
@@ -215,6 +223,8 @@ export class InterviewAgent {
   }
 
   stop() {
+    // finish() and the interview page's unmount cleanup both call this.
+    if (this.ended) return;
     this.ended = true;
     if (this.keepAlive) clearInterval(this.keepAlive);
     this.stopPlayback();
