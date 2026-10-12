@@ -3,10 +3,6 @@
 import { useEffect, useState } from "react";
 import type { BalanceResponse } from "@/lib/types";
 
-function money(amount: number, units: string) {
-  return units === "usd" ? `$${amount.toFixed(2)}` : `${amount.toFixed(2)} ${units.toUpperCase()}`;
-}
-
 /** Public beta badge. Renders nothing until the balance loads, and nothing on any error. */
 export function CreditsBadge() {
   const [data, setData] = useState<BalanceResponse | null>(null);
@@ -16,7 +12,7 @@ export function CreditsBadge() {
     fetch("/api/deepgram-balance")
       .then((res) => (res.ok ? res.json() : null))
       .then((d: BalanceResponse | null) => {
-        if (alive && d && typeof d.remaining === "number") setData(d);
+        if (alive && d && typeof d.estInterviewsLeft === "number") setData(d);
       })
       .catch(() => {});
     return () => {
@@ -28,7 +24,7 @@ export function CreditsBadge() {
   const n = data.estInterviewsLeft;
   return (
     <span className="credits-badge">
-      Beta credits left: {money(data.remaining, data.units)} (about {n.toLocaleString()} {n === 1 ? "interview" : "interviews"})
+      About {n.toLocaleString()} free {n === 1 ? "interview" : "interviews"} left in the beta
     </span>
   );
 }

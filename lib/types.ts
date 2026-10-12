@@ -50,8 +50,5 @@ export type InterviewSession = {
 
 /** Public response of /api/deepgram-balance. */
 export type BalanceResponse = {
-  remaining: number;
-  /** Lowercased, e.g. "usd" */
-  units: string;
   estInterviewsLeft: number;
 };

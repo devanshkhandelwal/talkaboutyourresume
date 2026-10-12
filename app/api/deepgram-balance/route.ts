@@ -12,7 +12,8 @@ const TTL_MS = 60_000;
 let cached: { at: number; data: BalanceResponse | null } | null = null;
 
 async function fetchBalance(): Promise<BalanceResponse | null> {
-  const key = process.env.DEEPGRAM_API_KEY;
+  // A separate billing-read key keeps the voice key (which mints browser tokens) at minimal permissions.
+  const key = process.env.DEEPGRAM_BILLING_API_KEY || process.env.DEEPGRAM_API_KEY;
   const project = process.env.DEEPGRAM_PROJECT_ID;
   if (!key || !project) return null;
   const res = await fetch(`https://api.deepgram.com/v1/projects/${encodeURIComponent(project)}/balances`, {
@@ -28,11 +29,8 @@ async function fetchBalance(): Promise<BalanceResponse | null> {
   const balances = Array.isArray(data.balances) ? data.balances : [];
   if (balances.length === 0) return null;
   const remaining = balances.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
-  return {
-    remaining,
-    units: String(balances[0].units ?? "usd").toLowerCase(),
-    estInterviewsLeft: Math.max(0, Math.floor(remaining / DEEPGRAM_COST_PER_INTERVIEW)),
-  };
+  // Only the interview estimate is public; the dollar balance stays on the server.
+  return { estInterviewsLeft: Math.max(0, Math.floor(remaining / DEEPGRAM_COST_PER_INTERVIEW)) };
 }
 
 export async function GET() {
