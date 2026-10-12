@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       system: SYSTEM,
       user: `<resume>\n${text}\n</resume>`,
       schema: SCHEMA,
-      maxTokens: 1500,
+      maxTokens: 4000,
     });
 
     const profile: ResumeProfile = {

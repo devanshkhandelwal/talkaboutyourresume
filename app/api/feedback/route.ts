@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       system: SYSTEM,
       user: `<resume_topics>\n${topics}\n</resume_topics>\n\n<transcript>\n${lines}\n</transcript>`,
       schema: SCHEMA,
-      maxTokens: 2000,
+      maxTokens: 4000,
     });
 
     const answers = Array.isArray(report.answers) ? report.answers.slice(0, 6) : [];
