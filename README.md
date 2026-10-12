@@ -73,4 +73,4 @@ Deepgram Voice Agent at the Standard tier is about **$0.075 per minute** (the de
 - Accounts so feedback and progress persist
 - Shareable result card, waiting room with mic check, sounds (upload whoosh, finish chime)
 - Full avatar expression set mapped to the interviewer's reactions
-- Verified profiles that employers can search.
+- Verified profiles that employers can search
