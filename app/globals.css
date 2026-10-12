@@ -39,6 +39,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .subtle { color: var(--ink-3); font-size: 14px; }
 
 .site-header { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding-top: 24px; padding-bottom: 24px; }
+.site-header-right { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 16px; min-width: 0; }
+.credits-badge { display: inline-block; padding: 6px 12px; border-radius: 999px; background: var(--good-soft); color: var(--good); font-size: 13px; font-weight: 700; line-height: 1.3; }
+@media (max-width: 640px) {
+  .site-header-right { justify-content: flex-start; }
+}
 .page-main { padding-top: 40px; padding-bottom: 88px; }
 .example-panel { padding: 32px; }
 @media (max-width: 640px) {
