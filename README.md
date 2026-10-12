@@ -48,7 +48,7 @@ app/
   api/session           Limits, Deepgram temporary token, builds the interviewer's Settings
   api/feedback          Transcript → Claude → feedback report
   api/waitlist          Saves emails (Upstash, or logs if not configured)
-  api/deepgram-balance  Public beta credits badge (Deepgram balance, cached 60 s)
+  api/deepgram-balance  Public "N free interviews left" badge (Deepgram balance, cached 60 s)
 lib/
   interviewers.ts       The six personalities, voices and greetings  ← tune these most
   prompts.ts            The interviewer system prompt and follow-up rules
