@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { checkResumeFile, pendingResume } from "@/lib/pendingResume";
 import type { ResumeProfile } from "@/lib/types";
@@ -26,6 +26,16 @@ export function UploadButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load /setup ahead of time, so picking a file switches screens instantly.
+  useEffect(() => {
+    router.prefetch("/setup");
+    return () => {
+      if (slowTimer.current) clearTimeout(slowTimer.current);
+    };
+  }, [router]);
+
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -38,7 +48,8 @@ export function UploadButton({
     // Don't wait for the read: setup is useful right away (pick an interviewer,
     // add a note) while the resume is read in the background.
     setError(null);
-    setBusy(true);
+    // Only show "Opening..." if the switch is slow (setup wasn't prefetched yet).
+    slowTimer.current = setTimeout(() => setBusy(true), 300);
     pendingResume.start(file, uploadResume);
     router.push("/setup");
   }

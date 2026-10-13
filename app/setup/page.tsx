@@ -40,6 +40,11 @@ export default function SetupPage() {
     setLoaded(true);
   }, []);
 
+  // Load the interview screen ahead of time, so Start switches instantly.
+  useEffect(() => {
+    router.prefetch("/interview");
+  }, [router]);
+
   // Pick up the profile once a background read finishes.
   useEffect(() => {
     if (pending.status === "idle") setProfile(store.getProfile());

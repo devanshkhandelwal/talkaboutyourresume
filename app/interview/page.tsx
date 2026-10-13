@@ -58,6 +58,11 @@ export default function InterviewPage() {
     setLoaded(true);
   }, []);
 
+  // Load the feedback screen ahead of time, so ending the interview switches instantly.
+  useEffect(() => {
+    router.prefetch("/feedback");
+  }, [router]);
+
   // Wall clock only. No countdown, like a real interview.
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 10_000);
