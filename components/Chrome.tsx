@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CreditsBadge } from "./CreditsBadge";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function SiteHeader({ right }: { right?: React.ReactNode }) {
@@ -8,6 +9,7 @@ export function SiteHeader({ right }: { right?: React.ReactNode }) {
         talkaboutyourresume
       </Link>
       <div className="site-header-right">
+        <CreditsBadge />
         {right}
         <ThemeToggle />
       </div>

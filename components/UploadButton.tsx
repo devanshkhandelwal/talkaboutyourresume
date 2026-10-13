@@ -4,7 +4,6 @@ import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { checkResumeFile, pendingResume } from "@/lib/pendingResume";
 import type { ResumeProfile } from "@/lib/types";
-import { CreditsBadge } from "./CreditsBadge";
 
 export async function uploadResume(file: File): Promise<ResumeProfile> {
   const form = new FormData();
@@ -18,12 +17,9 @@ export async function uploadResume(file: File): Promise<ResumeProfile> {
 export function UploadButton({
   label = "Start my free practice",
   variant = "dark",
-  showCredits = false,
 }: {
   label?: string;
   variant?: "dark" | "light";
-  /** Show the "N free interviews left" line under the button. */
-  showCredits?: boolean;
 }) {
   const id = useId();
   const router = useRouter();
@@ -72,8 +68,7 @@ export function UploadButton({
         )}
       </label>
       <input id={id} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onFile} disabled={busy} />
-      {showCredits && <CreditsBadge />}
-      <p style={{ margin: "8px 0 0", fontSize: 14, color: variant === "dark" ? "var(--ink-3)" : "var(--inv-ink-3)" }}>
+      <p style={{ margin: "10px 0 0", fontSize: 14, color: variant === "dark" ? "var(--ink-3)" : "var(--inv-ink-3)" }}>
         Upload your resume (PDF or DOCX) to start. No account needed.
       </p>
       {error && (

@@ -4,45 +4,50 @@ import { useEffect, useState } from "react";
 import type { BalanceResponse } from "@/lib/types";
 
 /** Rounded so it reads as a live count, not a precise promise: "330+", then "Only 42" when low. */
-function creditsText(n: number) {
-  if (n <= 0) return "Free beta interviews are used up for now";
-  if (n >= 100) return `${Math.floor(n / 10) * 10}+ free interviews left in the beta`;
-  return `Only ${n} free ${n === 1 ? "interview" : "interviews"} left in the beta`;
+function count(n: number) {
+  if (n >= 100) return { lead: "", num: `${Math.floor(n / 10) * 10}+`, rest: " free interviews left" };
+  return { lead: "Only ", num: String(n), rest: n === 1 ? " free interview left" : " free interviews left" };
 }
 
 /**
- * The beta's shared free-interview count, shown under the main call to action.
- * Reserves its line while loading so nothing below jumps; renders nothing on error.
+ * Header badge with the beta's shared free-interview count.
+ * Renders nothing until the count loads, and nothing on any error.
  */
 export function CreditsBadge() {
   const [data, setData] = useState<BalanceResponse | null>(null);
-  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
     fetch("/api/deepgram-balance")
       .then((res) => (res.ok ? res.json() : null))
       .then((d: BalanceResponse | null) => {
-        if (!alive) return;
-        if (d && typeof d.estInterviewsLeft === "number") setData(d);
-        else setFailed(true);
+        if (alive && d && typeof d.estInterviewsLeft === "number") setData(d);
       })
-      .catch(() => alive && setFailed(true));
+      .catch(() => {});
     return () => {
       alive = false;
     };
   }, []);
 
-  if (failed) return null;
-  const n = data?.estInterviewsLeft ?? 0;
+  if (!data) return null;
+  const n = data.estInterviewsLeft;
+  if (n <= 0) {
+    return (
+      <span className="credits-badge out" title="Free interviews are shared by everyone during the beta">
+        <span className="credits-dot" aria-hidden />
+        Free interviews are used up for now
+      </span>
+    );
+  }
+  const c = count(n);
   return (
-    <p className={`credits-line${data ? " ready" : ""}${data && n <= 0 ? " out" : ""}`} aria-live="polite">
-      {data && (
-        <>
-          <span className="credits-dot" aria-hidden />
-          {creditsText(n)}
-        </>
-      )}
-    </p>
+    <span className="credits-badge" title="Free interviews are shared by everyone during the beta">
+      <span className="credits-dot" aria-hidden />
+      <span>
+        {c.lead}
+        <strong>{c.num}</strong>
+        {c.rest}
+      </span>
+    </span>
   );
 }
