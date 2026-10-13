@@ -34,7 +34,6 @@ export function CreditsBadge() {
   if (n <= 0) {
     return (
       <span className="credits-badge out" title="Free interviews are shared by everyone during the beta">
-        <span className="credits-dot" aria-hidden />
         Free interviews are used up for now
       </span>
     );
@@ -42,7 +41,6 @@ export function CreditsBadge() {
   const c = count(n);
   return (
     <span className="credits-badge" title="Free interviews are shared by everyone during the beta">
-      <span className="credits-dot" aria-hidden />
       <span>
         {c.lead}
         <strong>{c.num}</strong>
