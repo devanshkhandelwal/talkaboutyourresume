@@ -212,3 +212,23 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .audio-player { gap: 8px; }
   .audio-total { display: none; }
 }
+
+/* Content on the left, a sticky summary column on the right; stacks on narrow screens. */
+.with-aside { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 56px; align-items: start; }
+.aside-sticky { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 20px; }
+@media (max-width: 1000px) {
+  .with-aside { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .aside-sticky { position: static; }
+}
+
+/* Setup: a small black "call" screen showing who you'll talk to. */
+.call-preview { position: relative; display: flex; flex-direction: column; align-items: center; padding: 28px 16px 18px; border-radius: 8px; background: #000; color: #fff; }
+.call-preview-tag { position: absolute; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 2px solid #fff; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #18a879; }
+.preview-bubble { position: relative; margin: 16px 0 0; padding: 12px 14px; border: 2px solid var(--ink); border-radius: 10px; font-weight: 500; line-height: 1.4; animation: bubble-in 260ms ease-out; }
+.preview-bubble::before { content: ""; position: absolute; top: -9px; left: 28px; width: 12px; height: 12px; background: var(--card); border-left: 2px solid var(--ink); border-top: 2px solid var(--ink); transform: rotate(45deg); }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.preview-list { margin: 16px 0 18px; padding: 0; border-top: 2px solid var(--ink); }
+.preview-list div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--ink); font-size: 15px; }
+.preview-list dt { color: var(--ink-3); }
+.preview-list dd { margin: 0; font-weight: 600; text-align: right; }

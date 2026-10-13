@@ -42,6 +42,25 @@ export default function SetupPage() {
   // Set when Start is clicked while the resume is still being read.
   const [waiting, setWaiting] = useState(false);
   const pending = useSyncExternalStore(pendingResume.subscribe, pendingResume.get, () => IDLE);
+  // How open the preview interviewer's mouth is: they say hello when picked.
+  const [greeting, setGreeting] = useState(0);
+
+  useEffect(() => {
+    if (!loaded || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = now - start;
+      if (t > 1300) {
+        setGreeting(0);
+        return;
+      }
+      setGreeting(Math.round(Math.abs(Math.sin(t / 95)) * 5) / 5);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [picked, loaded]);
 
   useEffect(() => {
     setProfile(store.getProfile());
@@ -139,7 +158,8 @@ export default function SetupPage() {
   return (
     <>
       <SiteHeader right={<span className="subtle">Up to {FREE_MINUTES} minutes{BETA ? ", free" : ""}</span>} />
-      <main className="wrap" style={{ maxWidth: "calc(1080px + 2 * var(--gutter))", paddingTop: 24, paddingBottom: 96 }}>
+      <main className="wrap with-aside" style={{ maxWidth: "calc(1320px + 2 * var(--gutter))", paddingTop: 24, paddingBottom: 96 }}>
+        <div style={{ minWidth: 0 }}>
         <h1 className="display h1" style={{ marginBottom: 24 }}>
           Set up your interview
         </h1>
@@ -329,40 +349,60 @@ export default function SetupPage() {
           </div>
         </section>
 
-        <section
-          aria-label="Your interview"
-          className="card card-lg"
-          style={{ marginTop: 48, padding: 24, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}
-        >
-          <Avatar character={chosen.id} size={72} decorative />
-          <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-            <p className="display" style={{ fontSize: "1.5rem", letterSpacing: "-0.02em" }}>{chosen.name}</p>
-            <p className="muted" style={{ margin: "2px 0 0" }}>
-              &ldquo;{chosen.sample}&rdquo;
-            </p>
-            <p className="subtle" style={{ margin: "6px 0 0" }}>
-              Starts now · up to {FREE_MINUTES} minutes · use headphones if you can
-              {questions.length > 0 ? ` · includes your ${questions.length} question${questions.length === 1 ? "" : "s"}` : ""}
-              {chosen.pro && BETA ? " · Pro interviewers are free during beta" : ""}
-            </p>
+        </div>
+
+        {/* A live preview of the interview you're building, beside the choices on wide screens. */}
+        <aside aria-label="Your interview" className="aside-sticky">
+          <div className="card card-lg" style={{ padding: 20 }}>
+            <div className="call-preview">
+              <span className="call-preview-tag" aria-hidden>
+                <span className="live-dot" /> Ready
+              </span>
+              <Avatar character={chosen.id} size={104} talking={greeting > 0} open={greeting} decorative />
+              <p style={{ margin: "10px 0 0", fontWeight: 600 }}>{chosen.name}</p>
+            </div>
+            <p key={chosen.id} className="preview-bubble">&ldquo;{chosen.sample}&rdquo;</p>
+            <dl className="preview-list">
+              <div>
+                <dt>Resume</dt>
+                <dd>{reading ? "Reading..." : failed ? "Needs a new file" : "Ready"}</dd>
+              </div>
+              <div>
+                <dt>Level</dt>
+                <dd>{chosen.level}{chosen.pro && BETA ? ", free in beta" : ""}</dd>
+              </div>
+              <div>
+                <dt>Your questions</dt>
+                <dd>{questions.length ? `${questions.length} of ${MAX_QUESTIONS}` : "None"}</dd>
+              </div>
+              <div>
+                <dt>Note</dt>
+                <dd>{note.trim() ? "Added" : "None"}</dd>
+              </div>
+              <div>
+                <dt>Length</dt>
+                <dd>Up to {FREE_MINUTES} min</dd>
+              </div>
+            </dl>
+            <button type="button" className="btn btn-dark" style={{ width: "100%", minHeight: 56, fontSize: 18 }} onClick={onStart} disabled={failed || waiting} aria-busy={waiting}>
+              {waiting ? (
+                <>
+                  <span className="spinner" aria-hidden />
+                  Finishing your resume...
+                </>
+              ) : (
+                <>
+                  Start interview
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M5 12h14" />
+                    <path d="M13 6l6 6-6 6" />
+                  </svg>
+                </>
+              )}
+            </button>
+            <p className="subtle" style={{ margin: "10px 0 0" }}>Starts right away. Use headphones if you can.</p>
           </div>
-          <button type="button" className="btn btn-dark" style={{ minHeight: 56, fontSize: 18 }} onClick={onStart} disabled={failed || waiting} aria-busy={waiting}>
-            {waiting ? (
-              <>
-                <span className="spinner" aria-hidden />
-                Finishing your resume...
-              </>
-            ) : (
-              <>
-                Start interview
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M5 12h14" />
-                  <path d="M13 6l6 6-6 6" />
-                </svg>
-              </>
-            )}
-          </button>
-        </section>
+        </aside>
       </main>
     </>
   );

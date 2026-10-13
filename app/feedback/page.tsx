@@ -4,7 +4,11 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SiteHeader } from "@/components/Chrome";
-import { getInterviewer } from "@/lib/interviewers";
+import { INTERVIEWERS, getInterviewer } from "@/lib/interviewers";
+import { BETA } from "@/lib/config";
+import { dayKey, getPracticedDays, recordPractice } from "@/lib/practice";
+import { Avatar } from "@/components/Avatar";
+import { PixelCalendar } from "@/components/PixelCalendar";
 import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
 import { AudioPlayer } from "@/components/AudioPlayer";
@@ -85,10 +89,14 @@ export default function FeedbackPage() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [saved, setSaved] = useState<"idle" | "saving" | "done">("idle");
+  const [practiced, setPracticed] = useState<string[]>([]);
 
   useEffect(() => {
     const s = store.getSession();
     setSession(s);
+    // Cross today off the calendar once there's a real interview to count.
+    const answered = s?.transcript.filter((l) => l.role === "user").length ?? 0;
+    setPracticed(s && answered >= 2 ? recordPractice(new Date(s.endedAt ?? Date.now())) : getPracticedDays());
     const r = store.getReport();
     setLoaded(true);
     if (r) {
@@ -146,6 +154,12 @@ export default function FeedbackPage() {
     a.click();
   }
 
+  function practiceWith(id: string) {
+    const prev = store.getSetup();
+    store.setSetup({ interviewerId: id, focusNote: prev?.focusNote ?? "", questions: prev?.questions ?? [] });
+    router.push("/setup");
+  }
+
   function retry(title: string, tip: string) {
     router.push(`/interview?retry=${encodeURIComponent(`${title}. Coaching note: ${tip}`)}`);
   }
@@ -171,11 +185,17 @@ export default function FeedbackPage() {
   const total = report?.answers.length ?? 0;
   const strong = report?.answers.filter((a) => a.verdict === "strong").length ?? 0;
   const weakest = report && report.weakestIndex !== null ? report.answers[report.weakestIndex] ?? null : null;
+  // Suggest the next interviewer in the list (they get tougher), wrapping around.
+  const next = INTERVIEWERS[(INTERVIEWERS.findIndex((i) => i.id === interviewer.id) + 1) % INTERVIEWERS.length];
+  const monthName = new Date().toLocaleDateString([], { month: "long" });
+  const thisMonth = dayKey(new Date()).slice(0, 7);
+  const daysThisMonth = practiced.filter((d) => d.startsWith(thisMonth)).length;
 
   return (
     <>
       <SiteHeader />
-      <main className="narrow" style={{ paddingTop: 24, paddingBottom: 96 }}>
+      <main className="wrap with-aside" style={{ maxWidth: "calc(1160px + 2 * var(--gutter))", paddingTop: 24, paddingBottom: 96 }}>
+        <div style={{ minWidth: 0, maxWidth: 760 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span style={{ flex: "0 0 auto", width: 48, height: 48, borderRadius: 8, background: "var(--good-soft)", border: "2px solid var(--ink)", boxShadow: "3px 3px 0 var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -333,6 +353,40 @@ export default function FeedbackPage() {
           )}
         </section>
 
+        </div>
+
+        <aside aria-label="Your practice" className="aside-sticky">
+          <section aria-labelledby="month-title" className="card" style={{ padding: 20 }}>
+            <h2 id="month-title" style={{ margin: "0 0 14px", fontSize: "1.125rem", fontWeight: 600 }}>
+              {monthName}
+            </h2>
+            <PixelCalendar practiced={practiced} />
+            <p style={{ margin: "14px 0 0", fontWeight: 600 }}>
+              {daysThisMonth === 0 ? "Finish an interview to cross off today." : daysThisMonth === 1 ? "1 day practiced this month" : `${daysThisMonth} days practiced this month`}
+            </p>
+            <p className="subtle" style={{ margin: "4px 0 0" }}>Kept in this browser only.</p>
+          </section>
+
+          <section aria-labelledby="next-title" className="card" style={{ padding: 20 }}>
+            <h2 id="next-title" style={{ margin: "0 0 14px", fontSize: "1.125rem", fontWeight: 600 }}>
+              Try someone new
+            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <Avatar character={next.id} size={56} decorative />
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>{next.name}</p>
+                <p className="subtle" style={{ margin: 0 }}>
+                  {next.level}
+                  {next.pro && BETA ? ", free in beta" : ""}
+                </p>
+              </div>
+            </div>
+            <p className="muted" style={{ margin: "12px 0 16px", fontSize: 15 }}>{next.blurb}</p>
+            <button type="button" className="btn btn-light btn-sm" style={{ width: "100%" }} onClick={() => practiceWith(next.id)}>
+              Practice with {next.name.replace(/^The /, "the ")}
+            </button>
+          </section>
+        </aside>
       </main>
     </>
   );
