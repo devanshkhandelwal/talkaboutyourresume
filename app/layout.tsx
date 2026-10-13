@@ -9,7 +9,8 @@ const display = Bricolage_Grotesque({ subsets: ["latin"], axes: ["opsz"], variab
 const body = DM_Sans({ subsets: ["latin"], axes: ["opsz"], variable: "--font-body", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Practice talking about your resume",
+  // Brand only, on every page.
+  title: "Talk About Your Resume",
   description:
     "An AI interviewer reads your resume and asks the follow-up questions real interviewers ask. Practice out loud and get specific feedback.",
 };
