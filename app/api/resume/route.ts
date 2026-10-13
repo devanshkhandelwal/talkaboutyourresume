@@ -32,8 +32,10 @@ Return only JSON with this shape:
   "name": string | null,
   "headline": string,            // one short line: who they are and what roles they target
   "topics": [                    // 4 to 7 items, the claims a sharp interviewer would dig into
-    { "title": string,           // short label like "Internship: checkout performance" (no company names)
+    { "id": string,              // "c1", "c2", ... in order
+      "title": string,           // short label like "Internship: checkout performance" (no company names)
       "claim": string,           // the resume line, lightly shortened
+      "sourceText": string,      // the same claim copied verbatim from the resume: exact characters, no paraphrasing, typos kept. May span more than one line.
       "probe": string }          // what to find out: baseline, measurement, personal ownership, tradeoffs
   ],
   "flags": string[]              // 0 to 3 inconsistencies or vague spots (overlapping dates, unexplained gaps, skills never used in any role)
@@ -49,8 +51,14 @@ const SCHEMA = {
       type: "array",
       items: {
         type: "object",
-        properties: { title: { type: "string" }, claim: { type: "string" }, probe: { type: "string" } },
-        required: ["title", "claim", "probe"],
+        properties: {
+          id: { type: "string" },
+          title: { type: "string" },
+          claim: { type: "string" },
+          sourceText: { type: "string" },
+          probe: { type: "string" },
+        },
+        required: ["id", "title", "claim", "sourceText", "probe"],
       },
     },
     flags: { type: "array", items: { type: "string" } },
@@ -95,11 +103,18 @@ export async function POST(req: NextRequest) {
       fileName: file.name,
       name: parsed.name ?? null,
       headline: String(parsed.headline ?? ""),
-      topics: (parsed.topics ?? []).slice(0, 7).map((t) => ({
-        title: String(t.title ?? ""),
-        claim: String(t.claim ?? ""),
-        probe: String(t.probe ?? ""),
-      })),
+      topics: (parsed.topics ?? []).slice(0, 7).map((t, i, all) => {
+        // Trust the model's id only if it's well formed and unique; feedback refers back to it.
+        const id = String(t.id ?? "");
+        const ok = /^[\w-]{1,12}$/.test(id) && all.findIndex((o) => String(o.id ?? "") === id) === i;
+        return {
+          id: ok ? id : `c${i + 1}`,
+          title: String(t.title ?? ""),
+          claim: String(t.claim ?? ""),
+          sourceText: String(t.sourceText ?? t.claim ?? ""),
+          probe: String(t.probe ?? ""),
+        };
+      }),
       flags: (parsed.flags ?? []).slice(0, 3).map(String),
     };
 
@@ -108,8 +123,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "We couldn't find anything to ask about. Is this a resume?" }, { status: 422 });
     }
     after(() => trackEvent("resume_read"));
-    // usage rides along for the browser's cost display; it isn't part of the profile.
-    return NextResponse.json({ ...profile, usage } satisfies ResumeProfile & { usage: ClaudeUsage });
+    // usage (for the cost display) and the resume text (for the heatmap) ride along for the
+    // browser, which keeps them apart from the profile. Nothing is stored on the server.
+    return NextResponse.json({ ...profile, usage, resumeText: text } satisfies ResumeProfile & { usage: ClaudeUsage; resumeText: string });
   } catch (err) {
     console.error("[resume]", err);
     after(() => trackEvent("resume_failed"));

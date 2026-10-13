@@ -1,10 +1,14 @@
 export type ResumeTopic = {
+  /** Stable id ("c1", "c2", ...) that feedback answers point back to. Missing on profiles read before the heatmap shipped. */
+  id?: string;
   /** Short label, e.g. "Internship: checkout performance" */
   title: string;
   /** The claim as written on the resume */
   claim: string;
   /** What a sharp interviewer would want to know about it */
   probe: string;
+  /** The claim copied verbatim from the resume text, for placing it on the resume heatmap. */
+  sourceText?: string;
 };
 
 export type ResumeProfile = {
@@ -26,6 +30,10 @@ export type Verdict = "strong" | "needs_detail" | "vague";
 
 export type AnswerFeedback = {
   title: string;
+  /** The interviewer's question, condensed. */
+  question?: string;
+  /** Id of the resume claim this answer was about, or null if none. */
+  claimId?: string | null;
   verdict: Verdict;
   tip: string;
 };

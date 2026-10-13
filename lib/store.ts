@@ -12,6 +12,8 @@ const KEYS = {
   setup: "tayr.setup",
   session: "tayr.session",
   report: "tayr.report",
+  /** Plain text of the resume, kept apart from the profile so it isn't sent with every request. */
+  resumeText: "tayr.resumeText",
 } as const;
 
 function read<T>(key: string): T | null {
@@ -34,7 +36,12 @@ function write(key: string, value: unknown) {
 export const store = {
   getProfile: () => read<ResumeProfile>(KEYS.profile),
   setProfile: (p: ResumeProfile) => write(KEYS.profile, p),
-  clearProfile: () => write(KEYS.profile, null),
+  clearProfile: () => {
+    write(KEYS.profile, null);
+    write(KEYS.resumeText, null);
+  },
+  getResumeText: () => read<string>(KEYS.resumeText),
+  setResumeText: (t: string | null) => write(KEYS.resumeText, t),
   getSetup: () => read<SetupChoice>(KEYS.setup),
   setSetup: (s: SetupChoice) => write(KEYS.setup, s),
   getSession: () => read<InterviewSession>(KEYS.session),

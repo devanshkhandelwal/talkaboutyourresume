@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { checkResumeFile, pendingResume } from "@/lib/pendingResume";
 import type { ClaudeUsage, ResumeProfile } from "@/lib/types";
 
-export type UploadedResume = { profile: ResumeProfile; usage?: ClaudeUsage };
+export type UploadedResume = { profile: ResumeProfile; usage?: ClaudeUsage; resumeText?: string };
 
 export async function uploadResume(file: File): Promise<UploadedResume> {
   const form = new FormData();
@@ -13,8 +13,8 @@ export async function uploadResume(file: File): Promise<UploadedResume> {
   const res = await fetch("/api/resume", { method: "POST", body: form });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Upload failed. Please try again.");
-  const { usage, ...profile } = data as ResumeProfile & { usage?: ClaudeUsage };
-  return { profile, usage };
+  const { usage, resumeText, ...profile } = data as ResumeProfile & { usage?: ClaudeUsage; resumeText?: string };
+  return { profile, usage, resumeText };
 }
 
 export function UploadButton({
