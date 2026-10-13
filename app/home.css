@@ -79,7 +79,12 @@
 .home-h1 { margin: 0; max-width: 11em; font-weight: 500; font-size: clamp(2.3rem, 4.2vw, 3.6rem); line-height: 1.06; letter-spacing: -0.025em; text-wrap: balance; }
 .home .nowrap { white-space: nowrap; }
 .home-lede { margin: 20px 0 32px; max-width: 40ch; font-size: 1.1875rem; line-height: 1.5; color: var(--ink-2); }
-.home-cta-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
+.home-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+/* Unwrap the upload button so the two buttons sit side by side and its file hint
+   (and any error) drops to its own line below them, instead of setting the gap. */
+.home-cta-row > div { display: contents; }
+.home-cta-row > a { order: 1; }
+.home-cta-row > div > p { order: 2; flex-basis: 100%; margin-top: -4px !important; }
 .home .upload-btn { width: auto !important; min-height: 52px !important; padding: 0 24px; border-radius: 10px; font-size: 17px !important; font-weight: 600; border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
 .glass-btn { display: inline-flex; align-items: center; min-height: 52px; padding: 0 22px; border-radius: 10px; text-decoration: none; font-weight: 600; }
 .glass-btn:hover { color: var(--ink); }
@@ -180,6 +185,9 @@
 /* Narrower windows: stack the hero. Copy first, then the room as its own panel,
    cropped to the desk side, so text never sits on top of the drawing. */
 @media (max-width: 1100px) {
+  /* The hero stacks here, so the header can sit in the flow; it may wrap without covering the headline. */
+  .home > .site-header { position: static; }
+  .home-hero-copy { padding-top: 16px !important; }
   .example { grid-template-columns: minmax(0, 1fr); }
   .hero-float { display: none; }
   .home-hero { flex-direction: column; align-items: stretch; min-height: 0; }
