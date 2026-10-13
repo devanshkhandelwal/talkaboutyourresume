@@ -79,54 +79,34 @@ function useExample() {
   return useSyncExternalStore(subscribe, () => current, () => 0);
 }
 
-/** The hero's signature element: a resume line under question, marked up like an interviewer would. */
-export function ResumeExample() {
+/** The same follow-up answered twice, with a picker for the role. */
+export function AnswerExample() {
   const idx = useExample();
   const ex = EXAMPLES[idx];
   return (
-    <div>
+    <>
       <div className="role-tabs" role="group" aria-label="Example role">
-        <span className="role-tabs-label">Example:</span>
         {EXAMPLES.map((e, i) => (
           <button key={e.id} type="button" aria-pressed={i === idx} onClick={() => choose(i)}>
             {e.label}
           </button>
         ))}
       </div>
-      {/* Keyed by example so the highlight and note replay when a role is picked. */}
-      <figure key={ex.id} className="paper" aria-label={`Example resume for a ${ex.role}, with the interviewer's follow-up question`}>
-        <p className="paper-role">{ex.role}</p>
-        <p className="paper-org">{ex.org}</p>
-        <ul className="paper-list">
-          <li>
-            <span className="mark">{ex.claim}</span>
-            <p className="pen-note">
-              <span className="pen-note-who">The interviewer asks</span>
-              &ldquo;{ex.question}&rdquo;
-            </p>
-          </li>
-          <li>{ex.other}</li>
-        </ul>
-      </figure>
-    </div>
-  );
-}
-
-/** The same follow-up answered twice, set as a short transcript. */
-export function AnswerExample() {
-  const idx = useExample();
-  const ex = EXAMPLES[idx];
-  return (
-    <>
-      <p className="home-sub">
-        The {ex.label.toLowerCase()} example from above. Both answers describe the same work; the second one gives the starting point, what they did, and the result.
+      <p className="example-claim">
+        On the resume: <span className="mark">{ex.claim}</span>
       </p>
       <dl className="transcript">
-        <dt>Interviewer</dt>
+        <dt>
+          <span className="chip-tag tag-ask">Interviewer</span>
+        </dt>
         <dd>&ldquo;{ex.question}&rdquo;</dd>
-        <dt>Before practice</dt>
+        <dt>
+          <span className="chip-tag tag-vague">Before practice</span>
+        </dt>
         <dd className="before">&ldquo;{ex.before}&rdquo;</dd>
-        <dt>After practice</dt>
+        <dt>
+          <span className="chip-tag tag-strong">After practice</span>
+        </dt>
         <dd>&ldquo;{ex.after}&rdquo;</dd>
       </dl>
     </>

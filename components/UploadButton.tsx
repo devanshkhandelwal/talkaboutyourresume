@@ -79,7 +79,7 @@ export function UploadButton({
         )}
       </label>
       <input id={id} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onFile} disabled={busy} />
-      <p style={{ margin: "10px 0 0", fontSize: 14, color: variant === "dark" ? "var(--ink-3)" : "var(--inv-ink-3)" }}>
+      <p style={{ margin: "10px 0 0", fontSize: 14, color: variant === "dark" ? "var(--upload-hint, var(--ink-3))" : "var(--inv-ink-3)" }}>
         PDF or DOCX, up to 5 MB. No account needed.
       </p>
       {error && (

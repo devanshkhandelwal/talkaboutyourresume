@@ -1,5 +1,6 @@
 import { SiteFooter, SiteHeader } from "@/components/Chrome";
-import { AnswerExample, ResumeExample } from "@/components/RoleExamples";
+import { PixelScene } from "@/components/PixelScene";
+import { AnswerExample } from "@/components/RoleExamples";
 import { UploadButton } from "@/components/UploadButton";
 import { FREE_MINUTES, PRO_MINUTES, PRO_PRICE } from "@/lib/config";
 import "./home.css";
@@ -10,36 +11,67 @@ export default function Home() {
       <SiteHeader
         right={
           <nav className="nav" aria-label="Main">
+            <a href="#how">How it works</a>
             <a href="#pricing">Pricing</a>
           </nav>
         }
       />
 
       <main id="top">
+        {/* Full-screen illustrated scene with the headline over the sky, like a window onto your desk. */}
         <section className="home-hero" aria-labelledby="hero-title">
+          <PixelScene />
+          <div className="home-hero-shade" aria-hidden />
           <div className="home-hero-copy">
             <h1 id="hero-title" className="home-h1">
-              Every line on your resume has a <span className="nowrap">follow-up</span> question.
+              Practice the <span className="nowrap">follow-up</span> questions on your own resume
             </h1>
             <p className="home-lede">
-              Upload your resume and an AI interviewer asks about what you wrote, out loud. It keeps digging until each answer is specific, then shows you which ones held up.
+              Upload your resume and talk with an AI interviewer that asks about what you actually wrote. Then see which answers held up.
             </p>
-            <UploadButton />
+            <div className="home-cta-row">
+              <UploadButton />
+              <a href="#how" className="glass-btn">
+                See an example
+              </a>
+            </div>
           </div>
-          <div className="home-hero-panel">
-            <ResumeExample />
+
+          {/* Glassy pieces of the product floating over the scene. Decorative; the real flow is below. */}
+          <div className="hero-float" aria-hidden>
+            <div className="glass float-q">
+              <span className="float-label">The Hiring Manager asks</span>
+              &ldquo;What was it before, and what did you change first?&rdquo;
+            </div>
+            <div className="glass float-status">
+              <span className="live-dot" />
+              Listening
+              <span className="bars">
+                <i />
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+            </div>
+            <div className="float-chips">
+              <span className="chip-tag tag-strong">Strong</span>
+              <span className="chip-tag tag-detail">Needs detail</span>
+              <span className="chip-tag tag-vague">Vague</span>
+            </div>
           </div>
         </section>
 
-        <section className="wrap home-section" aria-labelledby="answers-title">
+        <section id="how" className="wrap home-section" aria-labelledby="answers-title">
           <h2 id="answers-title" className="home-h2">
             Same experience, two answers
           </h2>
+          <p className="home-sub">The interviewer digs into one line of your resume. Practice turns a vague answer into one with a starting point, what you did, and the result.</p>
           <AnswerExample />
         </section>
 
         <section id="pricing" className="wrap home-section" aria-labelledby="pricing-title">
-          <h2 id="pricing-title" className="home-h2" style={{ marginBottom: 32 }}>
+          <h2 id="pricing-title" className="home-h2">
             Pricing
           </h2>
           <div className="pricing">
@@ -54,7 +86,9 @@ export default function Home() {
               </ul>
             </div>
             <div className="plan">
-              <h3 className="plan-name">Pro</h3>
+              <h3 className="plan-name">
+                Pro <span className="chip-tag tag-soon">Coming soon</span>
+              </h3>
               <p className="plan-price">
                 ${PRO_PRICE} <small>a month</small>
               </p>
@@ -64,16 +98,20 @@ export default function Home() {
                 <li>All six interviewers</li>
                 <li>Your progress from one session to the next</li>
               </ul>
-              <p className="plan-soon">Coming soon</p>
             </div>
           </div>
         </section>
 
-        <section className="wrap home-section home-close" aria-labelledby="close-title">
-          <h2 id="close-title" className="home-h2" style={{ margin: 0 }}>
-            Your next interviewer will ask a <span className="nowrap">follow-up</span>. Hear it here first.
-          </h2>
-          <UploadButton />
+        {/* The scene again as a closing band, so the page ends where it started. */}
+        <section className="home-close" aria-labelledby="close-title">
+          <PixelScene position="50% 22%" />
+          <div className="home-hero-shade" aria-hidden />
+          <div className="home-close-inner">
+            <h2 id="close-title" className="home-h2 on-scene">
+              Your next interviewer will ask a <span className="nowrap">follow-up</span>. Hear it here first.
+            </h2>
+            <UploadButton />
+          </div>
         </section>
       </main>
 
