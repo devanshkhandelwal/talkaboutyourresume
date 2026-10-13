@@ -72,9 +72,9 @@ Deepgram Voice Agent at the Standard tier is about **$0.075 per minute** (the de
 
 ## Roadmap (already designed)
 
-- Scheduled interviews with an emailed "Join interview" link and calendar invite
+- Emailed "Join interview" reminders (the calendar invite is done; email needs a sending service such as Resend)
 - Pro plan ($20/month, 100 minutes, all interviewers) with Stripe; set `BETA = false`
 - Accounts so feedback and progress persist
-- Shareable result card, waiting room with mic check, sounds (upload whoosh, finish chime)
+- Waiting room with mic check, sounds (upload whoosh, finish chime)
 - Full avatar expression set mapped to the interviewer's reactions
 - Verified profiles that employers can search

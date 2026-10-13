@@ -15,6 +15,8 @@ import { AudioPlayer } from "@/components/AudioPlayer";
 import { CostRows } from "@/components/LiveCost";
 import { FillerSummary, Highlighted } from "@/components/FillerWords";
 import { ResumeHeatmap } from "@/components/ResumeHeatmap";
+import { ScheduleNext } from "@/components/ScheduleNext";
+import { ShareResult } from "@/components/ShareResult";
 import { analyzeFillers } from "@/lib/fillers";
 import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
 import type { ClaudeUsage, FeedbackReport, InterviewSession, ResumeTopic } from "@/lib/types";
@@ -292,6 +294,17 @@ export default function FeedbackPage() {
             )}
 
             {total > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <ShareResult
+                  verdicts={report.answers.map((a) => a.verdict)}
+                  interviewer={interviewer.name}
+                  dateMs={session.endedAt ?? session.startedAt}
+                  bestQuote={report.bestMoment?.quote ?? null}
+                />
+              </div>
+            )}
+
+            {total > 0 && (
               <>
                 <h2 style={{ margin: "40px 0 0", fontSize: "1.25rem", fontWeight: 600 }}>Answer by answer</h2>
                 <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", borderTop: "2px solid var(--line)" }}>
@@ -400,6 +413,8 @@ export default function FeedbackPage() {
             </p>
             <p className="subtle" style={{ margin: "4px 0 0" }}>Kept in this browser only.</p>
           </section>
+
+          <ScheduleNext />
 
           <section aria-labelledby="next-title" className="card" style={{ padding: 20 }}>
             <h2 id="next-title" style={{ margin: "0 0 14px", fontSize: "1.125rem", fontWeight: 600 }}>
