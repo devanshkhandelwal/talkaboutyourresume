@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { MicLevel } from "@/components/MicLevel";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
 import { WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
@@ -271,6 +272,7 @@ export default function InterviewPage() {
           <span aria-label="Current time" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "1.0625rem" }}>
             {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
+          <ThemeToggle />
           {phase === "live" &&
             (confirmEnd ? (
               <span style={{ display: "inline-flex", gap: 8 }}>

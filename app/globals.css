@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #fbfbf9;
   --card: #ffffff;
   --card-2: #f3f3f5;
@@ -38,8 +38,9 @@
   --body: var(--font-body), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Light is the default; the header toggle sets data-theme="dark" on <html>. */
+:root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #111114;
     --card: #1a1a1f;
     --card-2: #25252c;
@@ -68,8 +69,10 @@
     --inv-fill: #2c2c34;
     --inv-edge: var(--accent);
     --shadow-rgb: 0, 0, 0;
-  }
 }
+
+.theme-toggle { flex: 0 0 auto; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); color: var(--ink); cursor: pointer; transition: transform 0.08s ease; }
+.theme-toggle:active { transform: scale(0.94); }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); }
