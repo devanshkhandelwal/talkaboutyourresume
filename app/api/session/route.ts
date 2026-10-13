@@ -86,10 +86,8 @@ export async function POST(req: NextRequest) {
           type: "deepgram",
           model: "nova-3",
           smart_format: false,
-          // Keep "um" and "uh" in the transcript so feedback can count them (Deepgram drops
-          // them by default). Documented for Deepgram's speech-to-text; set
-          // DEEPGRAM_FILLER_WORDS=false if the voice agent ever rejects it.
-          ...(process.env.DEEPGRAM_FILLER_WORDS === "false" ? {} : { filler_words: true }),
+          // No filler_words here: the voice agent rejects it and closes the session, even
+          // though Deepgram's plain speech-to-text supports it. So "um" and "uh" are dropped.
         },
       },
       think: {

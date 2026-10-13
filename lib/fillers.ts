@@ -4,8 +4,9 @@ import type { TranscriptLine } from "./types";
  * Filler words to count in the candidate's answers. Tune this list freely: each
  * pattern must capture the filler itself in a named group `f`, which is what gets
  * counted and highlighted. Patterns run on the candidate's turns only, never the
- * interviewer's. "um" and "uh" only appear if Deepgram's filler_words option is on
- * (see /api/session); punctuation-based rules depend on Deepgram's punctuation.
+ * interviewer's. Deepgram's voice agent drops "um" and "uh" (it rejects the
+ * filler_words option), so those two patterns only fire if that ever changes.
+ * Punctuation-based rules depend on Deepgram's punctuation.
  */
 export const FILLER_PATTERNS: { label: string; pattern: RegExp }[] = [
   { label: "um", pattern: /\b(?<f>u+m+)\b/gi },

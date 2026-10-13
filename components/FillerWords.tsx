@@ -29,7 +29,10 @@ export function FillerSummary({ report, transcript }: { report: FillerReport; tr
       </h2>
       <div className="card" style={{ marginTop: 12, padding: 24 }}>
         {total === 0 ? (
-          <p style={{ margin: 0, fontWeight: 600 }}>No filler words. Nice and clean.</p>
+          <>
+            <p style={{ margin: 0, fontWeight: 600 }}>No filler words. Nice and clean.</p>
+            <p className="subtle" style={{ margin: "4px 0 0" }}>&ldquo;Um&rdquo; and &ldquo;uh&rdquo; can&apos;t be counted yet: the voice service removes them.</p>
+          </>
         ) : (
           <>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 32px" }}>
@@ -43,7 +46,7 @@ export function FillerSummary({ report, transcript }: { report: FillerReport; tr
               </p>
             </div>
             <p className="subtle" style={{ margin: "4px 0 0" }}>
-              Per minute of your speaking, estimated at {WORDS_PER_MINUTE} words a minute.
+              Per minute of your speaking, estimated at {WORDS_PER_MINUTE} words a minute. &ldquo;Um&rdquo; and &ldquo;uh&rdquo; can&apos;t be counted yet: the voice service removes them.
             </p>
             <ul aria-label="By word" style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 8 }}>
               {byWord.map((w) => (
