@@ -129,9 +129,14 @@ export class InterviewAgent {
           return;
         }
         const type = rec.mimeType || mime || "audio/webm";
-        recording.set({ blob: new Blob(this.recChunks, { type }), ext: type.includes("mp4") ? "m4a" : "webm" });
+        recording.set({
+          blob: new Blob(this.recChunks, { type }),
+          ext: type.includes("mp4") ? "m4a" : "webm",
+          durationMs: Date.now() - startedAt,
+        });
         this.recChunks = [];
       };
+      const startedAt = Date.now();
       rec.start(1000);
       this.recorder = rec;
     } catch (err) {

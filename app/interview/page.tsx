@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { MicLevel } from "@/components/MicLevel";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
 import { WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
@@ -33,6 +32,9 @@ export default function InterviewPage() {
   const [captions, setCaptions] = useState(false);
   const [camera, setCamera] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [canFullscreen, setCanFullscreen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [mouth, setMouth] = useState(0);
   const [micCheck, setMicCheck] = useState<"off" | "starting" | "on" | "error">("off");
@@ -56,6 +58,22 @@ export default function InterviewPage() {
     const retry = new URLSearchParams(window.location.search).get("retry");
     if (retry) setRetryTopic(retry);
     setLoaded(true);
+  }, []);
+
+  // Load the feedback screen ahead of time, so ending the interview switches instantly.
+  useEffect(() => {
+    router.prefetch("/feedback");
+  }, [router]);
+
+  // Track browser full screen (also changes when people press Esc).
+  useEffect(() => {
+    setCanFullscreen(Boolean(document.fullscreenEnabled));
+    const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    };
   }, []);
 
   // Wall clock only. No countdown, like a real interview.
@@ -121,6 +139,7 @@ export default function InterviewPage() {
       transcript: linesRef.current,
     });
     store.setReport(null);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     router.push("/feedback");
   }, [phase, interviewerId, focusNote, retryTopic, router]);
 
@@ -135,8 +154,18 @@ export default function InterviewPage() {
     };
   }, []);
 
+  function toggleFullscreen() {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void document.documentElement.requestFullscreen?.().catch(() => {});
+  }
+
   async function join() {
     if (!profile) return;
+    // Full screen needs the click itself, so ask before anything async.
+    if (document.fullscreenEnabled && !document.fullscreenElement) {
+      void document.documentElement.requestFullscreen().catch(() => {});
+    }
+    setPrivacyOpen(false);
     // The interview opens its own mic stream.
     micCheckRef.current?.stop();
     micCheckRef.current = null;
@@ -249,129 +278,138 @@ export default function InterviewPage() {
             ? "Thinking"
             : "Listening";
   const recent = lines.slice(-2);
-  // Toggles share one look: filled when on, outlined when off. Labels never change;
-  // the icon (slashed when off) and aria-pressed carry the state.
+  // Call controls sit on the dark stage: filled white when on, glassy when off.
+  // Labels never change; the icon (slashed when off) and aria-pressed carry the state.
   const btn = (on: boolean): React.CSSProperties => ({
     minHeight: 48, padding: "0 18px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 8,
     fontSize: 15, fontWeight: 700, cursor: "pointer",
-    background: on ? "var(--primary-bg)" : "var(--card)", color: on ? "var(--primary-ink)" : "var(--ink)",
-    border: `1px solid ${on ? "var(--primary-bg)" : "var(--line-2)"}`,
+    background: on ? "#fff" : "rgba(255,255,255,0.08)", color: on ? "#16161a" : "var(--inv-ink)",
+    border: `1px solid ${on ? "#fff" : "var(--inv-line)"}`,
   });
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <header className="wrap site-header" style={{ maxWidth: 1080 }}>
+    // The interview is a full-window call stage, dark in both themes.
+    <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "var(--inv-bg)", color: "var(--inv-ink)", overflow: "hidden" }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 24px" }}>
         {phase === "lobby" ? (
-          <Link href="/" className="wordmark">
+          <Link href="/" className="wordmark" style={{ color: "var(--inv-ink)" }}>
             talkaboutyourresume
           </Link>
         ) : (
-          <span className="wordmark">talkaboutyourresume</span>
+          <span className="wordmark" style={{ color: "var(--inv-ink)" }}>talkaboutyourresume</span>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <span aria-label="Current time" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "1.0625rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span aria-label="Current time" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "1.0625rem", whiteSpace: "nowrap" }}>
             {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
-          <ThemeToggle />
-          {phase === "live" &&
-            (confirmEnd ? (
-              <span style={{ display: "inline-flex", gap: 8 }}>
-                <button className="btn btn-dark btn-sm" onClick={finish}>
-                  End and get feedback
-                </button>
-                <button className="btn btn-light btn-sm" onClick={() => setConfirmEnd(false)}>
-                  Keep going
-                </button>
-              </span>
-            ) : (
-              <button className="btn btn-light btn-sm" onClick={() => setConfirmEnd(true)}>
-                End interview
-              </button>
-            ))}
+          {canFullscreen && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-pressed={fullscreen}
+              aria-label="Full screen"
+              title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
+              style={{ width: 40, height: 40, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.08)", color: "var(--inv-ink)", border: "1px solid var(--inv-line)", cursor: "pointer" }}
+            >
+              <FullscreenIcon on={fullscreen} />
+            </button>
+          )}
         </div>
       </header>
 
-      <main className="wrap" style={{ flex: "1 1 auto", maxWidth: 1080, width: "100%", paddingTop: 8, paddingBottom: 48, display: "flex", flexDirection: "column", gap: 20 }}>
-        <section
-          aria-label="Interview"
-          style={{ position: "relative", minHeight: 480, borderRadius: 28, background: "var(--inv-bg)", color: "var(--inv-ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "48px 24px 140px", overflow: "hidden" }}
-        >
-          <span style={{ position: "relative", borderRadius: "50%", boxShadow: "0 0 0 8px rgba(255,255,255,0.06)" }}>
-            <span aria-hidden className={`speaking-ring${voiceActive ? " on" : ""}`} />
-            <Avatar character={interviewer.id} size={160} talking={voiceActive} open={mouth} />
-          </span>
-          <p className="display" style={{ fontSize: "1.5rem", fontWeight: 700 }}>{interviewer.name}</p>
+      <main aria-label="Interview" style={{ position: "relative", flex: "1 1 auto", minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "0 24px", textAlign: "center" }}>
+        <span style={{ position: "relative", borderRadius: "50%", boxShadow: "0 0 0 8px rgba(255,255,255,0.06)" }}>
+          <span aria-hidden className={`speaking-ring${voiceActive ? " on" : ""}`} />
+          <Avatar character={interviewer.id} size={160} talking={voiceActive} open={mouth} />
+        </span>
+        <p className="display" style={{ fontSize: "1.5rem", fontWeight: 700 }}>{interviewer.name}</p>
 
-          {phase === "lobby" ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-              <p style={{ margin: 0, color: "var(--inv-ink-3)", maxWidth: 420 }}>
-                {retryTopic ? "A short retry of one answer." : "Your interviewer is ready."} Find a quiet spot and use headphones if you can.
-              </p>
+        {phase === "lobby" ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+            <p style={{ margin: 0, color: "var(--inv-ink-3)", maxWidth: 420 }}>
+              {retryTopic ? "A short retry of one answer." : "Your interviewer is ready."} Find a quiet spot and use headphones if you can.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
               {micCheck === "on" ? (
-                <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 10, fontSize: 15, color: "var(--inv-ink-2)" }}>
+                <span style={{ ...btn(false), cursor: "default", fontWeight: 500, color: "var(--inv-ink-2)" }}>
                   <MicLevel read={() => micCheckRef.current?.level() ?? 0} />
                   Say something. The bars should move.
-                </p>
+                </span>
               ) : (
-                <button
-                  type="button"
-                  onClick={startMicCheck}
-                  disabled={micCheck === "starting"}
-                  style={{ minHeight: 40, padding: "0 16px", borderRadius: 999, background: "transparent", color: "var(--inv-ink)", border: "1px solid var(--inv-line)", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}
-                >
+                <button type="button" onClick={startMicCheck} disabled={micCheck === "starting"} style={btn(false)}>
                   <MicIcon on />
                   {micCheck === "starting" ? "Opening your mic..." : "Test your mic"}
                 </button>
               )}
-              <button className="btn btn-inverse" style={{ minHeight: 60, fontSize: 18 }} onClick={join}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <rect x="3" y="6" width="13" height="12" rx="2" />
-                  <path d="M16 10l5-3v10l-5-3" />
-                </svg>
-                Join interview
+              <button type="button" onClick={toggleCamera} aria-pressed={camera} style={btn(camera)}>
+                <CameraIcon on={camera} />
+                {camera ? "Camera on" : "Turn on camera"}
               </button>
+            </div>
+            {/* The one primary action here: brand blue, so it outranks the white "on" toggles. */}
+            <button className="btn btn-accent" style={{ minHeight: 60, fontSize: 18, padding: "0 32px" }} onClick={join}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="3" y="6" width="13" height="12" rx="2" />
+                <path d="M16 10l5-3v10l-5-3" />
+              </svg>
+              Join interview
+            </button>
+            <div style={{ position: "relative" }}>
               <p style={{ margin: 0, fontSize: 13, color: "var(--inv-ink-3)" }}>
-                Recorded on this device only, so you can replay it afterwards. <Link href="/privacy" style={{ color: "var(--inv-ink-2)" }}>Privacy</Link>
+                Recorded on this device only, so you can replay it afterwards.{" "}
+                <button
+                  type="button"
+                  aria-expanded={privacyOpen}
+                  aria-controls="privacy-card"
+                  onClick={() => setPrivacyOpen((o) => !o)}
+                  style={{ padding: 0, border: 0, background: "none", color: "var(--inv-ink-2)", textDecoration: "underline", font: "inherit", cursor: "pointer" }}
+                >
+                  Privacy
+                </button>
               </p>
+              {privacyOpen && <PrivacyCard onClose={() => setPrivacyOpen(false)} />}
             </div>
-          ) : (
-            <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, color: "var(--inv-ink-2)" }} aria-live="polite">
-              <span style={{ width: 10, height: 10, borderRadius: "50%", background: muted ? "var(--inv-ink-3)" : "#3dd6b8" }} />
-              {statusText}
-              {phase === "live" && !muted && <MicLevel read={() => agentRef.current?.inputLevel() ?? 0} />}
-            </p>
-          )}
+          </div>
+        ) : (
+          <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, color: "var(--inv-ink-2)" }} aria-live="polite">
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: muted ? "var(--inv-ink-3)" : "#3dd6b8" }} />
+            {statusText}
+            {phase === "live" && !muted && <MicLevel read={() => agentRef.current?.inputLevel() ?? 0} />}
+          </p>
+        )}
 
-          {captions && recent.length > 0 && (
-            <div style={{ position: "absolute", left: 24, right: 24, bottom: 24, display: "flex", flexDirection: "column", gap: 6, alignItems: "center", textAlign: "center" }}>
-              {recent.map((l, i) => (
-                <p key={lines.length - recent.length + i} style={{ margin: 0, maxWidth: 720, padding: "8px 14px", borderRadius: 10, background: l.role === "assistant" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)", fontSize: 15 }}>
-                  <strong>{l.role === "assistant" ? "Interviewer" : "You"}:</strong> {l.content}
-                </p>
-              ))}
-            </div>
-          )}
+        {camera && (
+          // Picture-in-picture self view, the same element in the lobby and the call so it never restarts.
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            aria-label="Your camera"
+            style={{ position: "absolute", right: 24, bottom: 16, width: "clamp(132px, 22vw, 280px)", aspectRatio: "16 / 10", objectFit: "cover", borderRadius: 16, border: "1px solid var(--inv-line)", transform: "scaleX(-1)", background: "var(--inv-fill)", boxShadow: "0 12px 32px -12px rgba(0,0,0,0.6)" }}
+          />
+        )}
+      </main>
 
-          {camera && (
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              aria-label="Your camera"
-              style={{ position: "absolute", top: 20, right: 20, width: 200, height: 130, objectFit: "cover", borderRadius: 16, border: "2px solid var(--inv-line)", transform: "scaleX(-1)", background: "var(--inv-fill)" }}
-            />
-          )}
-        </section>
+      <footer style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "12px 24px 24px" }}>
+        {captions && recent.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center", textAlign: "center", width: "100%" }}>
+            {recent.map((l, i) => (
+              <p key={lines.length - recent.length + i} style={{ margin: 0, maxWidth: 720, padding: "8px 14px", borderRadius: 10, background: l.role === "assistant" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)", fontSize: 15 }}>
+                <strong>{l.role === "assistant" ? "Interviewer" : "You"}:</strong> {l.content}
+              </p>
+            ))}
+          </div>
+        )}
 
         {error && (
-          <p className="error" role="alert">
+          <p className="error" role="alert" style={{ margin: 0, maxWidth: 560 }}>
             {error}
           </p>
         )}
 
         {phase === "live" && (
-          <div role="toolbar" aria-label="Interview controls" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 12 }}>
+          <div role="toolbar" aria-label="Interview controls" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
             <button type="button" style={btn(!muted)} aria-pressed={!muted} onClick={toggleMute}>
               <MicIcon on={!muted} />
               Mic
@@ -387,9 +425,75 @@ export default function InterviewPage() {
             <button type="button" style={btn(false)} onClick={takeMoment}>
               Give me a moment
             </button>
+            {confirmEnd ? (
+              <span style={{ display: "inline-flex", gap: 8 }}>
+                <button type="button" onClick={finish} style={{ ...btn(false), background: "#e5484d", borderColor: "#e5484d", color: "#fff" }}>
+                  End and get feedback
+                </button>
+                <button type="button" onClick={() => setConfirmEnd(false)} style={btn(false)}>
+                  Keep going
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmEnd(true)} style={{ ...btn(false), background: "#e5484d", borderColor: "#e5484d", color: "#fff" }}>
+                <EndIcon />
+                End
+              </button>
+            )}
           </div>
         )}
-      </main>
+      </footer>
+    </div>
+  );
+}
+
+/** A short privacy summary that opens right where it's asked for. Esc or a click outside closes it. */
+function PrivacyCard({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    ref.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Element;
+      // The Privacy link toggles the card itself; let its click handle that.
+      if (target.closest('[aria-controls="privacy-card"]')) return;
+      if (ref.current && !ref.current.contains(target)) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      id="privacy-card"
+      role="dialog"
+      aria-label="Privacy"
+      tabIndex={-1}
+      className="privacy-card"
+      style={{ position: "absolute", bottom: "calc(100% + 10px)", left: "50%", width: "min(380px, calc(100vw - 32px))", padding: 20, borderRadius: 18, background: "#fff", color: "#16161a", textAlign: "left", boxShadow: "0 24px 48px -16px rgba(0,0,0,0.55)", outline: "none", zIndex: 10 }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+        <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>Your privacy</p>
+        <button type="button" onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: 0, background: "#f3f3f5", color: "#16161a", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8, fontSize: 14, lineHeight: 1.45, color: "#3d3d46" }}>
+        <li>Your voice is streamed to Deepgram only to run this conversation.</li>
+        <li>The recording stays in this browser tab so you can replay or download it. It isn&apos;t uploaded to us.</li>
+        <li>Your resume and transcript go to Anthropic to ask questions and write feedback. We don&apos;t store them.</li>
+        <li>Nothing is shared with employers.</li>
+      </ul>
+      <a href="/privacy" target="_blank" rel="noopener" style={{ display: "inline-block", marginTop: 12, fontSize: 13, color: "#2b4bf2" }}>
+        Full privacy page (opens a new tab)
+      </a>
     </div>
   );
 }
@@ -423,6 +527,22 @@ function CaptionsIcon() {
       <rect x="3" y="5" width="18" height="14" rx="3" />
       <path d="M10 10.5a2 2 0 1 0 0 3" />
       <path d="M16 10.5a2 2 0 1 0 0 3" />
+    </svg>
+  );
+}
+
+function FullscreenIcon({ on }: { on: boolean }) {
+  return (
+    <svg {...ICON}>
+      {on ? <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /> : <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />}
+    </svg>
+  );
+}
+
+function EndIcon() {
+  return (
+    <svg {...ICON}>
+      <path d="M3 15.5c5-4.7 13-4.7 18 0l-2.2 2.6-3.6-1.4v-2.6c-2.1-.6-4.3-.6-6.4 0v2.6l-3.6 1.4z" />
     </svg>
   );
 }
