@@ -105,9 +105,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .site-header-right { justify-content: flex-start; }
 }
 .page-main { padding-top: 40px; padding-bottom: 88px; }
-.example-panel { padding: 32px; }
 @media (max-width: 640px) {
-  .example-panel { padding: 16px; }
   .page-main { padding-top: 16px; }
 }
 .interviewer-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }

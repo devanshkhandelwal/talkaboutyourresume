@@ -15,7 +15,7 @@ export async function uploadResume(file: File): Promise<ResumeProfile> {
 }
 
 export function UploadButton({
-  label = "Start my free practice",
+  label = "Upload your resume",
   variant = "dark",
 }: {
   label?: string;
@@ -79,8 +79,8 @@ export function UploadButton({
         )}
       </label>
       <input id={id} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onFile} disabled={busy} />
-      <p style={{ margin: "10px 0 0", fontSize: 14, color: variant === "dark" ? "var(--ink-3)" : "var(--inv-ink-3)" }}>
-        Upload your resume (PDF or DOCX) to start. No account needed.
+      <p style={{ margin: "10px 0 0", fontSize: 14, color: variant === "dark" ? "var(--upload-hint, var(--ink-3))" : "var(--inv-ink-3)" }}>
+        PDF or DOCX, up to 5 MB. No account needed.
       </p>
       {error && (
         <p className="error" role="alert" style={{ marginTop: 12, maxWidth: 480 }}>

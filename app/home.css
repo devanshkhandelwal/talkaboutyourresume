@@ -1,0 +1,163 @@
+/*
+  Home page. Direction from the client's references (Cofounder's illustrated hero,
+  Teak's playful color) and review: a 1-bit pixel-art room where everything is
+  black or white except the laptop's video call. UI over the scene follows the
+  same 1-bit look: paper cards with ink borders and hard offset shadows.
+  Colored verdict chips are the only other color. Full width, left aligned.
+  Type: Schibsted Grotesk at regular-to-semibold weights.
+*/
+.home {
+  --ground: #ffffff;
+  --paper: #ffffff;
+  --ink: #000000;
+  --ink-2: #33363d;
+  --ink-3: #5f636b;
+  --rule: #000000;
+  --pen: #1f3fd1;
+  --hl: #ffe45c;
+  --gutter: clamp(16px, 4.5vw, 72px);
+
+  /* Shared components inside the home page. */
+  --bg: var(--ground);
+  --card: var(--paper);
+  --line: var(--rule);
+  --line-2: var(--rule);
+  --accent: var(--ink);
+  --accent-ink: var(--ink);
+  --accent-soft: var(--paper);
+  --primary-bg: var(--ink);
+  --primary-ink: var(--paper);
+  --upload-hint: var(--ink-3);
+  --display: var(--font-home), system-ui, sans-serif;
+  --body: var(--font-home), system-ui, sans-serif;
+
+  min-height: 100vh;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+}
+:root[data-theme="dark"] .home {
+  --ground: #000000;
+  --paper: #000000;
+  --ink: #ffffff;
+  --ink-2: #d4d6db;
+  --ink-3: #a1a5ad;
+  --rule: #ffffff;
+  --pen: #8ea2ff;
+  --hl: #ffe45c;
+}
+
+/* Full width: rows span the window with gutters, no centered column. */
+.home .wrap { max-width: none; padding-left: var(--gutter); padding-right: var(--gutter); }
+.home :focus-visible { outline-color: var(--ink); }
+
+/* The 1-bit card: paper fill, ink border, hard offset shadow. */
+.bit,
+.home > .site-header .nav a,
+.home > .site-header .credits-badge,
+.home > .site-header .theme-toggle,
+.glass-btn { background: var(--paper); color: var(--ink); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+
+/* Header sits on the scene's white wall. */
+.home > .site-header { position: absolute; top: 0; left: 0; right: 0; z-index: 3; }
+.home > .site-header .wordmark { color: var(--ink); font-weight: 600; font-size: 20px; letter-spacing: -0.01em; }
+.home > .site-header .nav { gap: 10px; }
+.home > .site-header .nav a { padding: 6px 14px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+.home > .site-header .credits-badge { border-radius: 8px; }
+.home > .site-header .credits-badge strong { color: var(--ink); }
+.home > .site-header .theme-toggle { border-radius: 8px; }
+.home > .site-header .nav a:active,
+.glass-btn:active,
+.home .upload-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+
+/* Hero: the room fills the screen; copy sits on the plain wall at the left. */
+.home-hero { position: relative; min-height: clamp(620px, 100svh, 940px); display: flex; align-items: center; overflow: hidden; color: var(--ink); background: var(--paper); }
+.home-hero-shade { display: none; }
+/* About half the window, so the headline wraps before it reaches the scene. */
+.home-hero-copy { position: relative; z-index: 1; max-width: min(780px, 47vw); padding: 120px var(--gutter) 200px; }
+.home-h1 { margin: 0; max-width: 11em; font-weight: 500; font-size: clamp(2.3rem, 4.2vw, 3.6rem); line-height: 1.06; letter-spacing: -0.025em; text-wrap: pretty; }
+.home .nowrap { white-space: nowrap; }
+.home-lede { margin: 20px 0 32px; max-width: 40ch; font-size: 1.1875rem; line-height: 1.5; color: var(--ink-2); }
+.home-cta-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
+.home .upload-btn { width: auto !important; min-height: 52px !important; padding: 0 24px; border-radius: 10px; font-size: 17px !important; font-weight: 600; border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.glass-btn { display: inline-flex; align-items: center; min-height: 52px; padding: 0 22px; border-radius: 10px; text-decoration: none; font-weight: 600; }
+.glass-btn:hover { color: var(--ink); }
+
+/* Floating product UI over the scene (decorative), in the same 1-bit style. */
+.hero-float { position: absolute; z-index: 1; right: var(--gutter); top: 13%; width: min(360px, 28vw); display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.glass { background: var(--paper); color: var(--ink); border: 2px solid var(--ink); border-radius: 10px; box-shadow: 4px 4px 0 var(--ink); }
+.float-q { padding: 12px 14px; font-size: 16px; line-height: 1.4; font-weight: 500; }
+.float-label { display: block; margin-bottom: 4px; font-size: 13px; color: var(--ink-3); }
+.float-status { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #18a879; }
+.bars { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.bars i { display: block; width: 3px; border-radius: 1px; background: var(--ink); }
+.bars i:nth-child(1) { height: 5px; } .bars i:nth-child(2) { height: 10px; } .bars i:nth-child(3) { height: 14px; } .bars i:nth-child(4) { height: 8px; } .bars i:nth-child(5) { height: 4px; }
+.float-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+/* One orchestrated entrance: the floating pieces arrive in turn. */
+.hero-float > * { animation: float-in 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.hero-float > :nth-child(1) { animation-delay: 300ms; }
+.hero-float > :nth-child(2) { animation-delay: 620ms; }
+.hero-float > :nth-child(3) { animation-delay: 940ms; }
+@keyframes float-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Playful color chips: the only color outside the laptop screen. */
+.chip-tag { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 999px; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; vertical-align: middle; border: 2px solid var(--ink); }
+.tag-strong { background: #b8f0cf; color: #000; }
+.tag-detail { background: #ffd8a8; color: #000; }
+.tag-vague { background: #e4e4e8; color: #000; }
+.tag-ask { background: #c9d4ff; color: #000; }
+.tag-soon { background: #ffc7e2; color: #000; margin-left: 8px; }
+
+/* Sections below the hero. */
+.home-section { padding-top: clamp(56px, 8vw, 112px); padding-bottom: clamp(40px, 6vw, 80px); }
+.home-h2 { margin: 0 0 12px; font-weight: 600; font-size: clamp(1.9rem, 3.6vw, 3rem); line-height: 1.06; letter-spacing: -0.025em; color: var(--ink); text-wrap: balance; }
+.home-sub { margin: 0 0 32px; max-width: 62ch; color: var(--ink-2); font-size: 1.125rem; line-height: 1.5; }
+
+.role-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 24px; border-radius: 12px; background: var(--paper); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.role-tabs button { padding: 7px 14px; border: 0; border-radius: 8px; background: none; color: var(--ink-3); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.role-tabs button:hover { color: var(--ink); }
+.role-tabs button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+.example-claim { margin: 0 0 28px; font-size: 1.125rem; color: var(--ink-2); }
+.mark { padding: 1px 4px; background: var(--hl); color: #000; font-weight: 600; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+
+.transcript { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(0, 3fr); gap: 24px 32px; margin: 0; }
+.transcript dt { padding-top: 4px; }
+.transcript dd { margin: 0; max-width: 66ch; font-size: clamp(1.2rem, 1.7vw, 1.5rem); line-height: 1.45; letter-spacing: -0.01em; color: var(--ink); }
+.transcript dd.before { color: var(--ink-3); }
+
+.pricing { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px var(--gutter); margin-top: 32px; }
+.plan-name { display: flex; align-items: center; margin: 0; font-size: 1.125rem; font-weight: 600; }
+.plan-price { margin: 8px 0 0; font-size: 3.25rem; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.plan-price small { font-size: 1rem; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
+.plan ul { margin: 20px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: var(--ink-2); }
+
+/* Closing row: headline left, a second way in at the right edge. */
+.home-close { position: relative; margin-top: clamp(40px, 6vw, 80px); min-height: 300px; display: flex; align-items: center; overflow: hidden; color: var(--ink); background: var(--paper); border-top: 2px solid var(--ink); }
+.home-close-inner { position: relative; z-index: 1; width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; padding: 64px var(--gutter); }
+.home-h2.on-scene { margin: 0; max-width: 18ch; }
+/* The file hint is already in the hero. */
+.home-close-inner p:not([role="alert"]) { display: none; }
+.home .site-footer { border-top: 2px solid var(--ink); }
+
+/* Narrower windows: stack the hero. Copy first, then the room as its own panel,
+   cropped to the desk side, so text never sits on top of the drawing. */
+@media (max-width: 1100px) {
+  .hero-float { display: none; }
+  .home-hero { flex-direction: column; align-items: stretch; min-height: 0; }
+  .home-hero-copy { order: 1; max-width: 680px; padding-bottom: 28px; }
+  .home-hero > canvas { order: 2; position: relative !important; inset: auto !important; height: auto !important; aspect-ratio: 4 / 3; }
+}
+@media (max-width: 640px) {
+  .home { font-size: 16px; }
+  .home > .site-header .credits-badge { display: none; }
+  .home-hero-copy { padding-top: 96px; }
+  .transcript { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .transcript dd { margin-bottom: 18px; }
+  .pricing { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-float > * { opacity: 1 !important; transform: none !important; }
+}
