@@ -146,6 +146,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .chip-vague { background: var(--chip-neutral); }
 .chip-pro { background: #ffc7e2; }
 
+/* Filler words in the candidate's transcript: a highlighter mark, same in both themes. */
+.filler { background: var(--hl); color: #000; border-radius: 2px; padding: 0 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
 /* Small bordered buttons: suggestions, quick adds, remove. */
 .chip-btn { min-height: 36px; padding: 0 12px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
 .icon-btn { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }

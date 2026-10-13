@@ -81,7 +81,17 @@ export async function POST(req: NextRequest) {
       output: { encoding: "linear16", sample_rate: 24000, container: "none" },
     },
     agent: {
-      listen: { provider: { type: "deepgram", model: "nova-3", smart_format: false } },
+      listen: {
+        provider: {
+          type: "deepgram",
+          model: "nova-3",
+          smart_format: false,
+          // Keep "um" and "uh" in the transcript so feedback can count them (Deepgram drops
+          // them by default). Documented for Deepgram's speech-to-text; set
+          // DEEPGRAM_FILLER_WORDS=false if the voice agent ever rejects it.
+          ...(process.env.DEEPGRAM_FILLER_WORDS === "false" ? {} : { filler_words: true }),
+        },
+      },
       think: {
         provider: {
           type: "anthropic",

@@ -55,6 +55,7 @@ lib/
   voice/agent.ts        Browser side of the Deepgram websocket (mic in, voice out, barge-in)
   config.ts             BETA flag, free minutes, Pro price, cost per interview estimate, COST_RATES  ← update prices here
   cost.ts               Per-interview cost ledger (browser only): Deepgram voice time + Claude token usage
+  fillers.ts            Filler word patterns (FILLER_PATTERNS) and the counter for the feedback page  ← tune here
 components/Avatar.tsx   Placeholder faces with talking mouth frames
 public/mic-processor.js Mic → 16 kHz PCM on the audio thread
 ```

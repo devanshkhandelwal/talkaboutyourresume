@@ -13,6 +13,8 @@ import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { CostRows } from "@/components/LiveCost";
+import { FillerSummary, Highlighted } from "@/components/FillerWords";
+import { analyzeFillers } from "@/lib/fillers";
 import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
 import type { ClaudeUsage, FeedbackReport, InterviewSession } from "@/lib/types";
 
@@ -189,6 +191,7 @@ export default function FeedbackPage() {
 
   const interviewer = getInterviewer(session.interviewerId);
   const tooShort = session.transcript.filter((l) => l.role === "user").length < 2;
+  const fillers = analyzeFillers(session.transcript);
   const total = report?.answers.length ?? 0;
   const strong = report?.answers.filter((a) => a.verdict === "strong").length ?? 0;
   const weakest = report && report.weakestIndex !== null ? report.answers[report.weakestIndex] ?? null : null;
@@ -307,12 +310,20 @@ export default function FeedbackPage() {
           </>
         )}
 
+        {!tooShort && <FillerSummary report={fillers} transcript={session.transcript} />}
+
         <details style={{ marginTop: 20 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>Read the full transcript</summary>
           <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            {fillers.total > 0 && (
+              <p className="subtle" style={{ margin: 0 }}>
+                Your filler words are <mark className="filler">highlighted</mark>.
+              </p>
+            )}
             {session.transcript.map((l, i) => (
               <p key={i} style={{ margin: 0 }}>
-                <strong>{l.role === "user" ? "You" : "Interviewer"}:</strong> <span className="muted">{l.content}</span>
+                <strong>{l.role === "user" ? "You" : "Interviewer"}:</strong>{" "}
+                <span className="muted">{l.role === "user" ? <Highlighted text={l.content} matches={fillers.matches[i]} /> : l.content}</span>
               </p>
             ))}
             <button className="btn btn-light btn-sm" style={{ alignSelf: "flex-start" }} onClick={downloadTranscript}>
