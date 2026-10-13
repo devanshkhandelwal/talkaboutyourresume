@@ -96,10 +96,10 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 .site-header { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding-top: 24px; padding-bottom: 24px; }
 .site-header-right { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 16px; min-width: 0; }
-/* Header badge: a quiet outlined pill; the number carries the weight. */
-.credits-badge { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); color: var(--ink-2); font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; animation: credits-in 240ms ease-out; }
-.credits-badge strong { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-.credits-badge.out { color: var(--warm-ink); }
+/* Header badge: tinted in the brand blue so it stands apart from the nav; the number carries the weight. */
+.credits-badge { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; animation: credits-in 240ms ease-out; }
+.credits-badge strong { font-weight: 800; font-variant-numeric: tabular-nums; }
+.credits-badge.out { background: var(--warm-soft); color: var(--warm-ink); }
 @keyframes credits-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 @media (max-width: 640px) {
   .site-header-right { justify-content: flex-start; }
