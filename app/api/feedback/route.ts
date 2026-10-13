@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { askJson, MODELS } from "@/lib/claude";
 import { trackEvent } from "@/lib/limits";
-import type { FeedbackReport, ResumeProfile, TranscriptLine } from "@/lib/types";
+import type { ClaudeUsage, FeedbackReport, ResumeProfile, TranscriptLine } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,6 +18,8 @@ Return only JSON:
                              // why: one sentence on why it works
   "answers": [               // one per substantive question, in interview order, at most 6
     { "title": string,       // short topic label, e.g. "Internship: checkout performance"
+      "question": string,    // the interviewer's question this answers, condensed to under 20 words
+      "claimId": string | null,  // id in [brackets] from <resume_topics> that this answer is mainly about, or null if it isn't about any listed claim
       "verdict": "strong" | "needs_detail" | "vague",
       "tip": string }        // one actionable sentence. For weak answers, suggest the exact first sentence they could say.
   ],
@@ -40,10 +42,12 @@ const SCHEMA = {
         type: "object",
         properties: {
           title: { type: "string" },
+          question: { type: "string" },
+          claimId: { type: ["string", "null"] },
           verdict: { type: "string", enum: ["strong", "needs_detail", "vague"] },
           tip: { type: "string" },
         },
-        required: ["title", "verdict", "tip"],
+        required: ["title", "question", "claimId", "verdict", "tip"],
       },
     },
     weakestIndex: { type: ["integer", "null"] },
@@ -64,9 +68,10 @@ export async function POST(req: NextRequest) {
       .slice(-200)
       .map((t) => `${t.role === "user" ? "CANDIDATE" : "INTERVIEWER"}: ${String(t.content).slice(0, 2000)}`)
       .join("\n");
-    const topics = profile?.topics.map((t) => `- ${t.title}: ${t.claim}`).join("\n") ?? "";
+    const topics = profile?.topics.map((t) => `- ${t.id ? `[${t.id}] ` : ""}${t.title}: ${t.claim}`).join("\n") ?? "";
+    const claimIds = new Set(profile?.topics.map((t) => t.id).filter(Boolean));
 
-    const report = await askJson<FeedbackReport>({
+    const { data: report, usage } = await askJson<FeedbackReport>({
       model: MODELS.feedback,
       system: SYSTEM,
       user: `<resume_topics>\n${topics}\n</resume_topics>\n\n<transcript>\n${lines}\n</transcript>`,
@@ -74,7 +79,12 @@ export async function POST(req: NextRequest) {
       maxTokens: 4000,
     });
 
-    const answers = Array.isArray(report.answers) ? report.answers.slice(0, 6) : [];
+    const answers = (Array.isArray(report.answers) ? report.answers.slice(0, 6) : []).map((a) => ({
+      ...a,
+      question: String(a.question ?? ""),
+      // Only keep ids that point at a real claim, so the heatmap never shows a phantom.
+      claimId: typeof a.claimId === "string" && claimIds.has(a.claimId) ? a.claimId : null,
+    }));
     const weakest =
       typeof report.weakestIndex === "number" && report.weakestIndex >= 0 && report.weakestIndex < answers.length
         ? report.weakestIndex
@@ -92,7 +102,8 @@ export async function POST(req: NextRequest) {
       bestMoment: report.bestMoment ?? null,
       answers: sorted,
       weakestIndex: newWeakest,
-    } satisfies FeedbackReport);
+      usage,
+    } satisfies FeedbackReport & { usage: ClaudeUsage });
   } catch (err) {
     console.error("[feedback]", err);
     after(() => trackEvent("feedback_failed"));

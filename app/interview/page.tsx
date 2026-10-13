@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
+import { LiveCost } from "@/components/LiveCost";
 import { MicLevel } from "@/components/MicLevel";
+import { costLedger } from "@/lib/cost";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
 import { WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
@@ -195,9 +197,11 @@ export default function InterviewPage() {
           }
         },
         onError: (msg) => setError(msg),
+        onVoiceTime: (ms) => costLedger.addVoiceMs(ms),
       });
       agentRef.current = agent;
       await agent.start(data.token, data.settings);
+      costLedger.startInterview();
       startedAt.current = Date.now();
       setPhase("live");
 
@@ -295,7 +299,7 @@ export default function InterviewPage() {
   return (
     // The interview is a full-window call stage, dark in both themes.
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "var(--inv-bg)", color: "var(--inv-ink)", overflow: "hidden" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 24px" }}>
+      <header style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 16px", padding: "16px 24px" }}>
         {phase === "lobby" ? (
           <Link href="/" className="wordmark" style={{ color: "var(--inv-ink)" }}>
             talkaboutyourresume
@@ -307,6 +311,7 @@ export default function InterviewPage() {
           <span aria-label="Current time" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, fontSize: "1.0625rem", whiteSpace: "nowrap" }}>
             {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
+          {phase === "live" && <LiveCost voiceOpenedAt={() => agentRef.current?.voiceOpenedAt() ?? null} />}
           {canFullscreen && (
             <button
               type="button"

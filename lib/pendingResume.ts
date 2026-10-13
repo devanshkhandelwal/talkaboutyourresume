@@ -1,7 +1,8 @@
 "use client";
 
+import { costLedger } from "./cost";
 import { store } from "./store";
-import type { ResumeProfile } from "./types";
+import type { ClaudeUsage, ResumeProfile } from "./types";
 
 // Lets the upload keep running while the person is already on /setup.
 // Lives in memory: it survives client-side navigation, not a refresh.
@@ -29,15 +30,17 @@ export const pendingResume = {
     };
   },
   /** Starts reading a resume. A newer upload wins if two overlap. */
-  start(file: File, upload: (f: File) => Promise<ResumeProfile>) {
+  start(file: File, upload: (f: File) => Promise<{ profile: ResumeProfile; usage?: ClaudeUsage; resumeText?: string }>) {
     const mine = ++generation;
     store.clearProfile();
     store.setReport(null);
     set({ status: "reading", fileName: file.name });
     upload(file).then(
-      (profile) => {
+      ({ profile, usage, resumeText }) => {
         if (mine !== generation) return;
         store.setProfile(profile);
+        store.setResumeText(resumeText ?? null);
+        costLedger.resetForResume(usage);
         set(IDLE);
       },
       (err: unknown) => {

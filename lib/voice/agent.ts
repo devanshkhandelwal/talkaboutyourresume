@@ -17,6 +17,8 @@ export type AgentEvents = {
   onStatus: (s: AgentStatus) => void;
   onLine: (line: TranscriptLine) => void;
   onError: (message: string) => void;
+  /** Called once when the voice connection closes, with how long it was open (Deepgram bills by this time). */
+  onVoiceTime?: (ms: number) => void;
 };
 
 const AGENT_URL = "wss://agent.deepgram.com/v1/agent/converse";
@@ -38,6 +40,7 @@ export class InterviewAgent {
   private muted = false;
   private agentSpeaking = false;
   private ended = false;
+  private openedAt: number | null = null;
   private recDest: MediaStreamAudioDestinationNode | null = null;
   private recorder: MediaRecorder | null = null;
   private recChunks: Blob[] = [];
@@ -80,6 +83,7 @@ export class InterviewAgent {
     this.ws = ws;
 
     ws.onopen = () => {
+      this.openedAt = Date.now();
       ws.send(JSON.stringify(settings));
       this.keepAlive = setInterval(() => this.sendJson({ type: "KeepAlive" }), 8000);
     };
@@ -94,6 +98,7 @@ export class InterviewAgent {
     };
 
     ws.onclose = (ev) => {
+      this.closeVoiceClock();
       if (!this.ended) {
         this.events.onError(ev.code === 1008 || ev.code === 4001 ? "The session couldn't be authorized." : "The interview connection closed.");
         this.events.onStatus("error");
@@ -255,10 +260,24 @@ export class InterviewAgent {
     this.sendJson({ type: "InjectAgentMessage", message });
   }
 
+  /** When the voice connection opened, or null if it isn't open. */
+  voiceOpenedAt(): number | null {
+    return this.openedAt;
+  }
+
+  private closeVoiceClock() {
+    if (this.openedAt === null) return;
+    const ms = Date.now() - this.openedAt;
+    this.openedAt = null;
+    this.events.onVoiceTime?.(ms);
+  }
+
   stop() {
     // finish() and the interview page's unmount cleanup both call this.
     if (this.ended) return;
     this.ended = true;
+    // Count up to now: the socket closes asynchronously, after the page may have moved on.
+    this.closeVoiceClock();
     if (this.keepAlive) clearInterval(this.keepAlive);
     this.stopPlayback();
     this.node?.disconnect();

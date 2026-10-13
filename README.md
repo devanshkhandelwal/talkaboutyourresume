@@ -53,14 +53,17 @@ lib/
   interviewers.ts       The six personalities, voices and greetings  ← tune these most
   prompts.ts            The interviewer system prompt and follow-up rules
   voice/agent.ts        Browser side of the Deepgram websocket (mic in, voice out, barge-in)
-  config.ts             BETA flag, free minutes, Pro price, cost per interview estimate
+  config.ts             BETA flag, free minutes, Pro price, cost per interview estimate, COST_RATES  ← update prices here
+  cost.ts               Per-interview cost ledger (browser only): Deepgram voice time + Claude token usage
+  fillers.ts            Filler word patterns (FILLER_PATTERNS) and the counter for the feedback page  ← tune here
+  heatmap.ts            Places resume claims on resume lines and colors them by the weakest answer
 components/Avatar.tsx   Placeholder faces with talking mouth frames
 public/mic-processor.js Mic → 16 kHz PCM on the audio thread
 ```
 
 ## Costs (approximate)
 
-Deepgram Voice Agent at the Standard tier is about **$0.075 per minute** (the default think model, `claude-haiku-4-5`, is billed at Standard). A full 15-minute free interview costs about $1.13, plus a few cents of Claude for the resume read and feedback.
+Deepgram Voice Agent at the Standard tier is about **$0.075 per minute** (the default think model, `claude-haiku-4-5`, is billed at Standard). A full 15-minute free interview costs about $1.13, plus a few cents of Claude for the resume read and feedback. The live cost shown during each interview uses `COST_RATES` in `lib/config.ts`.
 
 ## Things to verify on first deploy
 

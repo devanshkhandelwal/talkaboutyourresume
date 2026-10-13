@@ -12,9 +12,14 @@ import { PixelCalendar } from "@/components/PixelCalendar";
 import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
 import { AudioPlayer } from "@/components/AudioPlayer";
-import type { FeedbackReport, InterviewSession } from "@/lib/types";
+import { CostRows } from "@/components/LiveCost";
+import { FillerSummary, Highlighted } from "@/components/FillerWords";
+import { ResumeHeatmap } from "@/components/ResumeHeatmap";
+import { analyzeFillers } from "@/lib/fillers";
+import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
+import type { ClaudeUsage, FeedbackReport, InterviewSession, ResumeTopic } from "@/lib/types";
 
-// Green for "strong" everywhere on this page, matching the progress bar.
+// Verdict chips: green, yellow, red, matching the resume heatmap.
 const CHIP = { strong: "chip-good", needs_detail: "chip-detail", vague: "chip-vague" } as const;
 const LABEL = { strong: "Strong", needs_detail: "Needs detail", vague: "Vague" } as const;
 
@@ -90,6 +95,8 @@ export default function FeedbackPage() {
   const [email, setEmail] = useState("");
   const [saved, setSaved] = useState<"idle" | "saving" | "done">("idle");
   const [practiced, setPracticed] = useState<string[]>([]);
+  const [cost, setCost] = useState<CostLedger | null>(null);
+  const [resume, setResume] = useState<{ text: string; topics: ResumeTopic[] } | null>(null);
 
   useEffect(() => {
     const s = store.getSession();
@@ -98,6 +105,11 @@ export default function FeedbackPage() {
     const answered = s?.transcript.filter((l) => l.role === "user").length ?? 0;
     setPracticed(s && answered >= 2 ? recordPractice(new Date(s.endedAt ?? Date.now())) : getPracticedDays());
     const r = store.getReport();
+    setCost(costLedger.get());
+    // The heatmap needs the resume text and claim ids; resumes read before it shipped have neither.
+    const text = store.getResumeText();
+    const topics = store.getProfile()?.topics ?? [];
+    if (text && topics.some((t) => t.id)) setResume({ text, topics });
     setLoaded(true);
     if (r) {
       setReport(r);
@@ -113,8 +125,11 @@ export default function FeedbackPage() {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Couldn't generate feedback.");
-        store.setReport(data);
-        setReport(data);
+        const { usage, ...report } = data as FeedbackReport & { usage?: ClaudeUsage };
+        costLedger.addClaude("feedback", usage);
+        setCost(costLedger.get());
+        store.setReport(report);
+        setReport(report);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Couldn't generate feedback."));
   }, []);
@@ -182,6 +197,7 @@ export default function FeedbackPage() {
 
   const interviewer = getInterviewer(session.interviewerId);
   const tooShort = session.transcript.filter((l) => l.role === "user").length < 2;
+  const fillers = analyzeFillers(session.transcript);
   const total = report?.answers.length ?? 0;
   const strong = report?.answers.filter((a) => a.verdict === "strong").length ?? 0;
   const weakest = report && report.weakestIndex !== null ? report.answers[report.weakestIndex] ?? null : null;
@@ -297,15 +313,25 @@ export default function FeedbackPage() {
                 </ul>
               </>
             )}
+
+            {resume && total > 0 && <ResumeHeatmap resumeText={resume.text} topics={resume.topics} answers={report.answers} />}
           </>
         )}
+
+        {!tooShort && <FillerSummary report={fillers} transcript={session.transcript} />}
 
         <details style={{ marginTop: 20 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>Read the full transcript</summary>
           <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            {fillers.total > 0 && (
+              <p className="subtle" style={{ margin: 0 }}>
+                Your filler words are <mark className="filler">highlighted</mark>.
+              </p>
+            )}
             {session.transcript.map((l, i) => (
               <p key={i} style={{ margin: 0 }}>
-                <strong>{l.role === "user" ? "You" : "Interviewer"}:</strong> <span className="muted">{l.content}</span>
+                <strong>{l.role === "user" ? "You" : "Interviewer"}:</strong>{" "}
+                <span className="muted">{l.role === "user" ? <Highlighted text={l.content} matches={fillers.matches[i]} /> : l.content}</span>
               </p>
             ))}
             <button className="btn btn-light btn-sm" style={{ alignSelf: "flex-start" }} onClick={downloadTranscript}>
@@ -356,6 +382,14 @@ export default function FeedbackPage() {
         </div>
 
         <aside aria-label="Your practice" className="aside-sticky">
+          {cost && (cost.voiceMs > 0 || cost.claude.length > 0) && (
+            <section aria-labelledby="cost-title" className="card" style={{ padding: 20 }}>
+              <h2 id="cost-title" style={{ margin: "0 0 10px", fontSize: "1.125rem", fontWeight: 600 }}>
+                What this interview cost
+              </h2>
+              <CostRows b={costBreakdown(cost)} feedback={!tooShort && !report && !error ? "pending" : "none"} />
+            </section>
+          )}
           <section aria-labelledby="month-title" className="card" style={{ padding: 20 }}>
             <h2 id="month-title" style={{ margin: "0 0 14px", fontSize: "1.125rem", fontWeight: 600 }}>
               {monthName}

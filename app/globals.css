@@ -25,6 +25,12 @@
   --good-ink: #0b6e4f;
   --good-soft: #b8f0cf;
   --chip-neutral: #e4e4e8;
+  /* Verdict colors, shared by the chips and the resume heatmap: green, yellow, red. */
+  --v-strong: #b8f0cf;
+  --v-detail: #ffe98a;
+  --v-vague: #ffc7c7;
+  /* Filler word highlight: lavender, so it never reads as a verdict. */
+  --filler: #ddd0ff;
   --error-bg: #ffc7c7;
   --error-ink: #000000;
   --primary-bg: #000000;
@@ -141,10 +147,15 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* Verdict chips: the playful color on the page. Fixed fills, so text is always black. */
 .chip { display: inline-block; padding: 3px 10px; border-radius: 999px; border: 2px solid var(--ink); font-size: 13px; font-weight: 600; color: #000; }
-.chip-strong, .chip-good { background: var(--good-soft); }
-.chip-detail { background: var(--warm-soft); }
-.chip-vague { background: var(--chip-neutral); }
+.chip-strong, .chip-good { background: var(--v-strong); }
+.chip-detail { background: var(--v-detail); }
+.chip-vague { background: var(--v-vague); }
+/* Neutral count chips (filler words). */
+.chip-neutral { background: var(--chip-neutral); }
 .chip-pro { background: #ffc7e2; }
+
+/* Filler words in the candidate's transcript: a highlighter mark, same in both themes. */
+.filler { background: var(--filler); color: #000; border-radius: 2px; padding: 0 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 
 /* Small bordered buttons: suggestions, quick adds, remove. */
 .chip-btn { min-height: 36px; padding: 0 12px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
@@ -232,3 +243,15 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .preview-list div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--ink); font-size: 15px; }
 .preview-list dt { color: var(--ink-3); }
 .preview-list dd { margin: 0; font-weight: 600; text-align: right; }
+
+/* Resume heatmap (feedback page): the resume as text, discussed parts filled with their verdict color. */
+.heatmap { font-size: 15px; line-height: 1.5; }
+.heat-plain { margin: 0; padding: 2px 8px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); }
+.heat-gap { display: block; height: 8px; }
+.heat-part { display: block; width: 100%; margin: 2px 0; padding: 4px 8px; border: 2px solid var(--ink); border-radius: 6px; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; color: #000; font-weight: 500; cursor: pointer; }
+.heat-part[aria-expanded="true"] { box-shadow: 3px 3px 0 var(--ink); }
+.heat-swatch { width: 16px; height: 16px; border-radius: 4px; border: 2px solid var(--ink); background: var(--card); }
+.heat-strong { background: var(--v-strong); }
+.heat-needs_detail { background: var(--v-detail); }
+.heat-vague { background: var(--v-vague); }
+.heat-notes { margin: 6px 0 10px; padding: 14px 16px; border: 2px solid var(--ink); border-radius: 8px; background: var(--card); }

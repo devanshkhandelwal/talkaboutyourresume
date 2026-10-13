@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { ClaudeUsage } from "./types";
 
 let client: Anthropic | null = null;
 
@@ -19,7 +20,8 @@ export const MODELS = {
  * Asks Claude for a JSON object. The reply comes back through a tool call,
  * so the API hands us a parsed object instead of text we have to parse ourselves
  * (free-text JSON broke on raw newlines and stray comments). Each caller supplies
- * the JSON Schema for the result.
+ * the JSON Schema for the result. Token usage comes back alongside it, so the
+ * browser can show what the call cost.
  */
 export async function askJson<T>(opts: {
   model: string;
@@ -28,7 +30,7 @@ export async function askJson<T>(opts: {
   /** JSON Schema for the result object. */
   schema: Record<string, unknown>;
   maxTokens?: number;
-}): Promise<T> {
+}): Promise<{ data: T; usage: ClaudeUsage }> {
   const res = await claude().messages.create({
     model: opts.model,
     max_tokens: opts.maxTokens ?? 2000,
@@ -47,5 +49,12 @@ export async function askJson<T>(opts: {
   if (res.stop_reason === "max_tokens") throw new Error("Model reply was cut off (max_tokens)");
   const block = res.content.find((b) => b.type === "tool_use");
   if (!block || block.type !== "tool_use") throw new Error("Model did not return JSON");
-  return block.input as T;
+  const usage: ClaudeUsage = {
+    model: opts.model,
+    input_tokens: res.usage.input_tokens,
+    output_tokens: res.usage.output_tokens,
+    ...(res.usage.cache_creation_input_tokens ? { cache_creation_input_tokens: res.usage.cache_creation_input_tokens } : {}),
+    ...(res.usage.cache_read_input_tokens ? { cache_read_input_tokens: res.usage.cache_read_input_tokens } : {}),
+  };
+  return { data: block.input as T, usage };
 }
