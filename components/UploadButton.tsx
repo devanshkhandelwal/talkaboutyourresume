@@ -47,13 +47,13 @@ export function UploadButton({
     <div>
       <label
         htmlFor={id}
-        className={`btn upload-btn ${variant === "dark" ? "btn-dark" : "btn-light upload-btn-on-dark"}`}
+        className={`btn upload-btn ${variant === "dark" ? "btn-dark" : "btn-inverse upload-btn-on-dark"}`}
         style={{ minHeight: 60, fontSize: 18, maxWidth: 360, width: "100%", cursor: busy ? "progress" : "pointer" }}
         aria-busy={busy}
       >
         {busy ? (
           <>
-            <span className={`spinner ${variant === "light" ? "spinner-dark" : ""}`} aria-hidden />
+            <span className="spinner" aria-hidden />
             Reading your resume...
           </>
         ) : (
@@ -68,6 +68,9 @@ export function UploadButton({
         )}
       </label>
       <input id={id} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onFile} disabled={busy} />
+      <p style={{ margin: "10px 0 0", fontSize: 14, color: variant === "dark" ? "var(--ink-3)" : "var(--inv-ink-3)" }}>
+        Upload your resume (PDF or DOCX) to start. Free, no account.
+      </p>
       {error && (
         <p className="error" role="alert" style={{ marginTop: 12, maxWidth: 480 }}>
           {error}

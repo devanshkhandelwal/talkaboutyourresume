@@ -2,6 +2,7 @@
 
 import type { TranscriptLine } from "../types";
 import { recording } from "./recording";
+import { readLevel } from "./level";
 
 export type AgentStatus =
   | "connecting"
@@ -42,6 +43,8 @@ export class InterviewAgent {
   private recChunks: Blob[] = [];
   private analyser: AnalyserNode | null = null;
   private levelBuf: Float32Array<ArrayBuffer> | null = null;
+  private outAnalyser: AnalyserNode | null = null;
+  private outBuf: Float32Array<ArrayBuffer> | null = null;
 
   constructor(private events: AgentEvents) {}
 
@@ -61,6 +64,9 @@ export class InterviewAgent {
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 512;
     source.connect(this.analyser);
+    // Tap on the interviewer's voice, to move the avatar's mouth with the audio.
+    this.outAnalyser = this.ctx.createAnalyser();
+    this.outAnalyser.fftSize = 512;
     // The worklet must be pulled by the graph; route it to a silent gain.
     const sink = this.ctx.createGain();
     sink.gain.value = 0;
@@ -192,6 +198,7 @@ export class InterviewAgent {
     src.buffer = audio;
     src.connect(this.ctx.destination);
     if (this.recDest) src.connect(this.recDest);
+    if (this.outAnalyser) src.connect(this.outAnalyser);
     const now = this.ctx.currentTime;
     this.playhead = Math.max(this.playhead, now + 0.03);
     src.start(this.playhead);
@@ -216,11 +223,15 @@ export class InterviewAgent {
   inputLevel(): number {
     if (!this.analyser || this.muted || this.ended) return 0;
     this.levelBuf ??= new Float32Array(this.analyser.fftSize);
-    this.analyser.getFloatTimeDomainData(this.levelBuf);
-    let sum = 0;
-    for (const v of this.levelBuf) sum += v * v;
     // Speech RMS is usually 0.02 to 0.2; scale so normal talking fills most of the meter.
-    return Math.min(1, Math.sqrt(sum / this.levelBuf.length) * 6);
+    return readLevel(this.analyser, this.levelBuf, 6);
+  }
+
+  /** Current loudness of the interviewer's voice, 0 to 1. */
+  outputLevel(): number {
+    if (!this.outAnalyser || this.ended) return 0;
+    this.outBuf ??= new Float32Array(this.outAnalyser.fftSize);
+    return readLevel(this.outAnalyser, this.outBuf, 5);
   }
 
   setMuted(muted: boolean) {

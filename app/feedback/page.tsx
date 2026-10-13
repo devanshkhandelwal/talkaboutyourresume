@@ -9,8 +9,47 @@ import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
 import type { FeedbackReport, InterviewSession } from "@/lib/types";
 
-const CHIP = { strong: "chip-strong", needs_detail: "chip-detail", vague: "chip-vague" } as const;
+// Green for "strong" everywhere on this page, matching the progress bar.
+const CHIP = { strong: "chip-good", needs_detail: "chip-detail", vague: "chip-vague" } as const;
 const LABEL = { strong: "Strong", needs_detail: "Needs detail", vague: "Vague" } as const;
+
+const STEPS = [
+  { at: 0, label: "Reading your transcript" },
+  { at: 4000, label: "Judging each answer" },
+  { at: 9000, label: "Writing your tips" },
+];
+
+/** What the wait is doing, so 10 to 20 seconds doesn't feel like a stall. Steps are paced by time. */
+function ReviewSteps() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const t = setInterval(() => setElapsed(Date.now() - start), 500);
+    return () => clearInterval(t);
+  }, []);
+  const current = STEPS.reduce((n, s, i) => (elapsed >= s.at ? i : n), 0);
+  return (
+    <div role="status" style={{ marginTop: 24 }}>
+      <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+        {STEPS.map((s, i) => (
+          <li key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, color: i <= current ? "var(--ink)" : "var(--ink-3)", fontWeight: i === current ? 700 : 400 }}>
+            {i < current ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--good)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12l5 5L20 7" />
+              </svg>
+            ) : i === current ? (
+              <span className="spinner" aria-hidden />
+            ) : (
+              <span aria-hidden style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--line-2)" }} />
+            )}
+            {s.label}
+          </li>
+        ))}
+      </ol>
+      <p className="subtle" style={{ margin: "12px 0 0" }}>Usually takes about 15 seconds.</p>
+    </div>
+  );
+}
 
 function RetryIcon() {
   return (
@@ -172,11 +211,7 @@ export default function FeedbackPage() {
           </p>
         )}
 
-        {!tooShort && !report && !error && (
-          <p className="muted" style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 24 }}>
-            <span className="spinner spinner-dark" aria-hidden /> Reviewing your answers...
-          </p>
-        )}
+        {!tooShort && !report && !error && <ReviewSteps />}
 
         {error && (
           <p className="error" role="alert" style={{ marginTop: 24 }}>
@@ -193,10 +228,10 @@ export default function FeedbackPage() {
                 <h2 id="best" style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--accent-ink)" }}>
                   Your best moment
                 </h2>
-                <p className="display" style={{ fontWeight: 700, fontSize: "1.375rem", lineHeight: 1.35, color: "#1a1f4d", letterSpacing: "-0.01em" }}>
+                <p className="display" style={{ fontWeight: 700, fontSize: "1.375rem", lineHeight: 1.35, color: "var(--best-ink)", letterSpacing: "-0.01em" }}>
                   &ldquo;{report.bestMoment.quote}&rdquo;
                 </p>
-                <p style={{ margin: "10px 0 0", color: "#1a1f4d" }}>{report.bestMoment.why}</p>
+                <p style={{ margin: "10px 0 0", color: "var(--best-ink)" }}>{report.bestMoment.why}</p>
               </section>
             )}
 
@@ -264,15 +299,22 @@ export default function FeedbackPage() {
           </div>
         </details>
 
-        <section aria-labelledby="save-title" style={{ marginTop: 40, padding: 28, borderRadius: 24, background: "var(--ink)", color: "#fff" }}>
+        <p style={{ marginTop: 32, display: "flex", justifyContent: "center" }}>
+          <Link href="/setup" className="btn btn-light">
+            Practice again
+          </Link>
+        </p>
+
+        {/* A light card: the email ask shouldn't outweigh practicing again. */}
+        <section aria-labelledby="save-title" className="card" style={{ marginTop: 32, padding: 28, borderRadius: 24 }}>
           {saved === "done" ? (
             <p className="display" style={{ fontSize: "1.5rem" }}>You&apos;re on the list. Thanks for trying it!</p>
           ) : (
             <form onSubmit={saveEmail}>
-              <h2 id="save-title" className="display" style={{ fontSize: "1.75rem", letterSpacing: "-0.02em" }}>
-                Want more practice?
+              <h2 id="save-title" className="display" style={{ fontSize: "1.5rem", letterSpacing: "-0.02em" }}>
+                Want to hear what&apos;s next?
               </h2>
-              <p style={{ margin: "8px 0 16px", color: "#c4c4cc" }}>
+              <p className="muted" style={{ margin: "8px 0 16px" }}>
                 We&apos;re in beta. Leave your email and we&apos;ll tell you when Pro, scheduled interviews and new interviewers go live.
               </p>
               <label htmlFor="email" className="visually-hidden">Email</label>
@@ -286,13 +328,13 @@ export default function FeedbackPage() {
                   className="input"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  style={{ flex: "1 1 220px", color: "var(--ink)" }}
+                  style={{ flex: "1 1 220px" }}
                 />
-                <button className="btn" style={{ background: "#fff", color: "var(--ink)", minHeight: 48 }} disabled={saved === "saving"}>
+                <button className="btn btn-dark" style={{ minHeight: 48 }} disabled={saved === "saving"}>
                   {saved === "saving" ? "Saving..." : "Keep me posted"}
                 </button>
               </div>
-              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 14, fontSize: 14, color: "#e6e6ea", cursor: "pointer" }}>
+              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 14, fontSize: 14, color: "var(--ink-2)", cursor: "pointer" }}>
                 <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} style={{ marginTop: 4 }} />
                 I&apos;d like to share a verified version of my interview with employers when that&apos;s ready.
               </label>
@@ -300,9 +342,6 @@ export default function FeedbackPage() {
           )}
         </section>
 
-        <p style={{ marginTop: 24, textAlign: "center" }}>
-          <Link href="/setup">Practice again</Link>
-        </p>
       </main>
     </>
   );

@@ -126,9 +126,9 @@ function ExampleCard() {
             onClick={() => choose(i)}
             style={{
               minHeight: 40, padding: "0 16px", borderRadius: 999, fontSize: 14, fontWeight: 700, cursor: "pointer",
-              background: i === idx ? "var(--ink)" : "#fff",
-              color: i === idx ? "#fff" : "var(--ink-2)",
-              border: `1px solid ${i === idx ? "var(--ink)" : "var(--line-2)"}`,
+              background: i === idx ? "var(--primary-bg)" : "var(--card)",
+              color: i === idx ? "var(--primary-ink)" : "var(--ink-2)",
+              border: `1px solid ${i === idx ? "var(--primary-bg)" : "var(--line-2)"}`,
             }}
           >
             {e.label}
@@ -139,11 +139,11 @@ function ExampleCard() {
         <div style={stack}>
           {EXAMPLES.map((ex, i) => (
             <div key={ex.id} style={layer(i === idx)} aria-hidden={i !== idx || undefined}>
-              <div style={{ padding: 20, borderRadius: 18, background: "#fff", boxShadow: "0 12px 32px -20px rgba(22,22,26,0.35)" }}>
+              <div style={{ padding: 20, borderRadius: 18, background: "var(--card)", boxShadow: "0 12px 32px -20px rgba(var(--shadow-rgb), 0.35)" }}>
                 <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ink-3)" }}>Your resume</p>
                 <p style={{ margin: "0 0 10px", fontWeight: 700 }}>{ex.title}</p>
                 <p style={{ margin: 0, padding: "8px 12px", borderRadius: 10, background: "var(--warm-soft)", color: "var(--warm-ink)", fontWeight: 500 }}>{ex.claim}</p>
-                <p style={{ margin: "8px 0 0", padding: "0 12px", color: "#6b6b74" }}>{ex.other}</p>
+                <p style={{ margin: "8px 0 0", padding: "0 12px", color: "var(--ink-3)" }}>{ex.other}</p>
               </div>
               <div style={{ margin: "20px 0 0 40px", padding: "20px 22px", borderRadius: "18px 18px 18px 4px", background: "var(--accent)", color: "#fff" }}>
                 <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Interviewer</p>
@@ -152,9 +152,9 @@ function ExampleCard() {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderRadius: 999, background: "#fff" }}>
-          <span style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: "50%", background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderRadius: 999, background: "var(--card)" }}>
+          <span style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: "50%", background: "var(--primary-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" />
               <path d="M19 11a7 7 0 0 1-14 0" />
               <path d="M12 18v3" />

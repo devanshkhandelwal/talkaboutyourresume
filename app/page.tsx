@@ -54,14 +54,14 @@ export default function Home() {
               Start free
             </a>
           </div>
-          <div style={{ padding: 28, borderRadius: 20, background: "var(--ink)", color: "#fff", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: 28, borderRadius: 20, background: "var(--inv-bg)", color: "var(--inv-ink)", border: "1px solid var(--inv-edge)", display: "flex", flexDirection: "column" }}>
             <h3 style={{ margin: 0, fontSize: "1.125rem" }}>Pro</h3>
             <p style={{ margin: "8px 0 4px" }}>
               <span className="display" style={{ fontSize: "2.5rem" }}>${PRO_PRICE}</span>
-              <span style={{ color: "#c4c4cc" }}> / month</span>
+              <span style={{ color: "var(--inv-ink-3)" }}> / month</span>
             </p>
-            <p style={{ margin: "0 0 20px", fontSize: 14, color: "#c4c4cc" }}>Cancel anytime.</p>
-            <ul style={{ margin: "0 0 28px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10, color: "#e6e6ea" }}>
+            <p style={{ margin: "0 0 20px", fontSize: 14, color: "var(--inv-ink-3)" }}>Cancel anytime.</p>
+            <ul style={{ margin: "0 0 28px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10, color: "var(--inv-ink-2)" }}>
               <li>{PRO_MINUTES} minutes of practice</li>
               <li>Questions tailored to a specific job</li>
               <li>All 6 interviewers, every session</li>
@@ -75,7 +75,7 @@ export default function Home() {
       </section>
 
       <section className="wrap" aria-labelledby="final-title" style={{ paddingBottom: 96 }}>
-        <div style={{ padding: "56px 24px", borderRadius: 28, background: "var(--ink)", color: "#fff", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
+        <div style={{ padding: "56px 24px", borderRadius: 28, background: "var(--inv-bg)", color: "var(--inv-ink)", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
           <h2 id="final-title" className="display" style={{ maxWidth: 640, fontSize: "clamp(1.8rem, 4vw, 2.5rem)", lineHeight: 1.1 }}>
             Your next interviewer will ask a follow-up. Hear it here first.
           </h2>

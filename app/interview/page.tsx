@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { MicLevel } from "@/components/MicLevel";
+import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
 import { WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
 import { store } from "@/lib/store";
@@ -32,7 +33,8 @@ export default function InterviewPage() {
   const [camera, setCamera] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const [frame, setFrame] = useState(0);
+  const [mouth, setMouth] = useState(0);
+  const [micCheck, setMicCheck] = useState<"off" | "starting" | "on" | "error">("off");
 
   const agentRef = useRef<InterviewAgent | null>(null);
   const linesRef = useRef<TranscriptLine[]>([]);
@@ -41,6 +43,7 @@ export default function InterviewPage() {
   const wrapping = useRef(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStream = useRef<MediaStream | null>(null);
+  const micCheckRef = useRef<MicCheck | null>(null);
 
   useEffect(() => {
     setProfile(store.getProfile());
@@ -60,12 +63,47 @@ export default function InterviewPage() {
     return () => clearInterval(t);
   }, []);
 
-  // Mouth animation while the interviewer speaks.
+  // Mouth follows the loudness of the interviewer's actual voice. Re-renders only
+  // when the quantized openness changes, not every frame.
   useEffect(() => {
-    if (status !== "speaking") return;
-    const t = setInterval(() => setFrame((f) => f + 1), 140);
-    return () => clearInterval(t);
-  }, [status]);
+    if (phase !== "live") return;
+    let raf = 0;
+    let level = 0;
+    let last = -1;
+    const tick = () => {
+      const target = agentRef.current?.outputLevel() ?? 0;
+      level += (target - level) * (target > level ? 0.6 : 0.25);
+      const q = Math.round(Math.min(1, level) * 5) / 5;
+      if (q !== last) {
+        last = q;
+        setMouth(q);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [phase]);
+
+  useEffect(() => () => micCheckRef.current?.stop(), []);
+
+  async function startMicCheck() {
+    setError(null);
+    setMicCheck("starting");
+    const check = new MicCheck();
+    try {
+      await check.start();
+      micCheckRef.current = check;
+      setMicCheck("on");
+    } catch (err) {
+      check.stop();
+      setMicCheck("error");
+      setError(
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "We need microphone access for the interview. Allow it in your browser and try again."
+          : "Couldn't open your microphone. Check that one is connected.",
+      );
+    }
+  }
 
   const finish = useCallback(() => {
     if (phase === "ending") return;
@@ -98,6 +136,10 @@ export default function InterviewPage() {
 
   async function join() {
     if (!profile) return;
+    // The interview opens its own mic stream.
+    micCheckRef.current?.stop();
+    micCheckRef.current = null;
+    setMicCheck("off");
     setError(null);
     setPhase("starting");
     try {
@@ -192,6 +234,9 @@ export default function InterviewPage() {
 
   const interviewer = getInterviewer(interviewerId);
   const speaking = status === "speaking";
+  // Deepgram sends no "started speaking" event for the greeting, so also treat
+  // any audible interviewer audio as talking.
+  const voiceActive = speaking || mouth > 0;
   const statusText =
     phase === "starting" || status === "connecting"
       ? "Connecting..."
@@ -203,17 +248,25 @@ export default function InterviewPage() {
             ? "Thinking"
             : "Listening";
   const recent = lines.slice(-2);
+  // Toggles share one look: filled when on, outlined when off. Labels never change;
+  // the icon (slashed when off) and aria-pressed carry the state.
   const btn = (on: boolean): React.CSSProperties => ({
     minHeight: 48, padding: "0 18px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 8,
     fontSize: 15, fontWeight: 700, cursor: "pointer",
-    background: on ? "var(--ink)" : "#fff", color: on ? "#fff" : "var(--ink)",
-    border: `1px solid ${on ? "var(--ink)" : "var(--line-2)"}`,
+    background: on ? "var(--primary-bg)" : "var(--card)", color: on ? "var(--primary-ink)" : "var(--ink)",
+    border: `1px solid ${on ? "var(--primary-bg)" : "var(--line-2)"}`,
   });
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <header className="wrap site-header" style={{ maxWidth: 1080 }}>
-        <span className="wordmark">talkaboutyourresume</span>
+        {phase === "lobby" ? (
+          <Link href="/" className="wordmark">
+            talkaboutyourresume
+          </Link>
+        ) : (
+          <span className="wordmark">talkaboutyourresume</span>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <span aria-label="Current time" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "1.0625rem" }}>
             {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
@@ -239,29 +292,49 @@ export default function InterviewPage() {
       <main className="wrap" style={{ flex: "1 1 auto", maxWidth: 1080, width: "100%", paddingTop: 8, paddingBottom: 48, display: "flex", flexDirection: "column", gap: 20 }}>
         <section
           aria-label="Interview"
-          style={{ position: "relative", minHeight: 480, borderRadius: 28, background: "var(--ink)", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "48px 24px 140px", overflow: "hidden" }}
+          style={{ position: "relative", minHeight: 480, borderRadius: 28, background: "var(--inv-bg)", color: "var(--inv-ink)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "48px 24px 140px", overflow: "hidden" }}
         >
-          <span style={{ borderRadius: "50%", animation: speaking ? "pulse 1.2s ease-in-out infinite" : undefined, boxShadow: "0 0 0 8px rgba(255,255,255,0.06)" }}>
-            <Avatar character={interviewer.id} size={160} talking={speaking} frame={frame} />
+          <span style={{ position: "relative", borderRadius: "50%", boxShadow: "0 0 0 8px rgba(255,255,255,0.06)" }}>
+            <span aria-hidden className={`speaking-ring${voiceActive ? " on" : ""}`} />
+            <Avatar character={interviewer.id} size={160} talking={voiceActive} open={mouth} />
           </span>
           <p className="display" style={{ fontSize: "1.5rem", fontWeight: 700 }}>{interviewer.name}</p>
 
           {phase === "lobby" ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-              <p style={{ margin: 0, color: "#c4c4cc", maxWidth: 420 }}>
+              <p style={{ margin: 0, color: "var(--inv-ink-3)", maxWidth: 420 }}>
                 {retryTopic ? "A short retry of one answer." : "Your interviewer is ready."} Find a quiet spot and use headphones if you can.
               </p>
-              <button className="btn" style={{ background: "#fff", color: "var(--ink)", minHeight: 60, fontSize: 18 }} onClick={join}>
+              {micCheck === "on" ? (
+                <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 10, fontSize: 15, color: "var(--inv-ink-2)" }}>
+                  <MicLevel read={() => micCheckRef.current?.level() ?? 0} />
+                  Say something. The bars should move.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startMicCheck}
+                  disabled={micCheck === "starting"}
+                  style={{ minHeight: 40, padding: "0 16px", borderRadius: 999, background: "transparent", color: "var(--inv-ink)", border: "1px solid var(--inv-line)", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}
+                >
+                  <MicIcon on />
+                  {micCheck === "starting" ? "Opening your mic..." : "Test your mic"}
+                </button>
+              )}
+              <button className="btn btn-inverse" style={{ minHeight: 60, fontSize: 18 }} onClick={join}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <rect x="3" y="6" width="13" height="12" rx="2" />
                   <path d="M16 10l5-3v10l-5-3" />
                 </svg>
                 Join interview
               </button>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--inv-ink-3)" }}>
+                Recorded on this device only, so you can replay it afterwards. <Link href="/privacy" style={{ color: "var(--inv-ink-2)" }}>Privacy</Link>
+              </p>
             </div>
           ) : (
-            <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, color: "#e6e6ea" }} aria-live="polite">
-              <span style={{ width: 10, height: 10, borderRadius: "50%", background: muted ? "#c4c4cc" : "#3dd6b8" }} />
+            <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, color: "var(--inv-ink-2)" }} aria-live="polite">
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: muted ? "var(--inv-ink-3)" : "#3dd6b8" }} />
               {statusText}
               {phase === "live" && !muted && <MicLevel read={() => agentRef.current?.inputLevel() ?? 0} />}
             </p>
@@ -284,7 +357,7 @@ export default function InterviewPage() {
               muted
               playsInline
               aria-label="Your camera"
-              style={{ position: "absolute", top: 20, right: 20, width: 200, height: 130, objectFit: "cover", borderRadius: 16, border: "2px solid #4a4a52", transform: "scaleX(-1)", background: "#3a3a42" }}
+              style={{ position: "absolute", top: 20, right: 20, width: 200, height: 130, objectFit: "cover", borderRadius: 16, border: "2px solid var(--inv-line)", transform: "scaleX(-1)", background: "var(--inv-fill)" }}
             />
           )}
         </section>
@@ -297,14 +370,17 @@ export default function InterviewPage() {
 
         {phase === "live" && (
           <div role="toolbar" aria-label="Interview controls" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 12 }}>
-            <button type="button" style={btn(muted)} aria-pressed={muted} onClick={toggleMute}>
-              {muted ? "Unmute" : "Mute"}
+            <button type="button" style={btn(!muted)} aria-pressed={!muted} onClick={toggleMute}>
+              <MicIcon on={!muted} />
+              Mic
             </button>
             <button type="button" style={btn(camera)} aria-pressed={camera} onClick={toggleCamera}>
-              {camera ? "Camera on" : "Camera off"}
+              <CameraIcon on={camera} />
+              Camera
             </button>
             <button type="button" style={btn(captions)} aria-pressed={captions} onClick={() => setCaptions((c) => !c)}>
-              {captions ? "Captions on" : "Captions off"}
+              <CaptionsIcon />
+              Captions
             </button>
             <button type="button" style={btn(false)} onClick={takeMoment}>
               Give me a moment
@@ -313,5 +389,38 @@ export default function InterviewPage() {
         )}
       </main>
     </div>
+  );
+}
+
+const ICON = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
+
+function MicIcon({ on }: { on: boolean }) {
+  return (
+    <svg {...ICON}>
+      <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" />
+      <path d="M19 11a7 7 0 0 1-14 0" />
+      <path d="M12 18v3" />
+      {!on && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
+function CameraIcon({ on }: { on: boolean }) {
+  return (
+    <svg {...ICON}>
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="M16 10l5-3v10l-5-3" />
+      {!on && <path d="M3 3l18 18" />}
+    </svg>
+  );
+}
+
+function CaptionsIcon() {
+  return (
+    <svg {...ICON}>
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path d="M10 10.5a2 2 0 1 0 0 3" />
+      <path d="M16 10.5a2 2 0 1 0 0 3" />
+    </svg>
   );
 }
