@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { saveEmail } from "@/lib/limits";
+import { NextRequest, NextResponse, after } from "next/server";
+import { saveEmail, trackEvent } from "@/lib/limits";
 
 export const runtime = "nodejs";
 
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       source: String(source ?? "unknown").slice(0, 40),
       verifiedProfile: verifiedProfile ? "yes" : "no",
     });
+    after(() => trackEvent("waitlist_signup"));
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[waitlist]", err);

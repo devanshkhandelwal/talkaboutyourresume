@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getInterviewer, INTERVIEWERS } from "@/lib/interviewers";
 import { buildInterviewerPrompt } from "@/lib/prompts";
-import { clientIp, takeDailyInterview } from "@/lib/limits";
+import { clientIp, takeDailyInterview, trackEvent } from "@/lib/limits";
 import type { ResumeProfile } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -57,14 +57,15 @@ export async function POST(req: NextRequest) {
   }
 
   const interviewer = getInterviewer(body.interviewerId);
+  // Questions the candidate wants to practice: at most 5 strings of up to 200 characters.
+  const questions = Array.isArray(body.questions)
+    ? body.questions.filter((q): q is string => typeof q === "string").map((q) => q.replace(/\s+/g, " ").trim().slice(0, 200)).filter(Boolean).slice(0, 5)
+    : [];
   const prompt = buildInterviewerPrompt({
     interviewer,
     profile: body.profile,
     focusNote: (body.focusNote ?? "").slice(0, 1500),
-    // Questions the candidate wants to practice: at most 5 strings of up to 200 characters.
-    questions: Array.isArray(body.questions)
-      ? body.questions.filter((q): q is string => typeof q === "string").map((q) => q.replace(/\s+/g, " ").trim().slice(0, 200)).filter(Boolean).slice(0, 5)
-      : [],
+    questions,
     minutes: sessionMinutes,
     retryTopic,
   });
@@ -95,6 +96,13 @@ export async function POST(req: NextRequest) {
       greeting: greetings[Math.floor(Math.random() * greetings.length)],
     },
   };
+
+  after(async () => {
+    if (retryTopic) return trackEvent("retry_started");
+    await trackEvent("interview_started");
+    await trackEvent(`interviewer:${interviewer.id}`);
+    if (questions.length > 0) await trackEvent("custom_questions_used");
+  });
 
   return NextResponse.json({
     token: access_token,

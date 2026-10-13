@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { askJson, MODELS } from "@/lib/claude";
+import { trackEvent } from "@/lib/limits";
 import type { FeedbackReport, ResumeProfile, TranscriptLine } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
     const sorted = order.map((o) => o.a);
     const newWeakest = weakest === null ? null : order.findIndex((o) => o.i === weakest);
 
+    after(() => trackEvent("feedback_generated"));
     return NextResponse.json({
       summary: String(report.summary ?? ""),
       bestMoment: report.bestMoment ?? null,
@@ -93,6 +95,7 @@ export async function POST(req: NextRequest) {
     } satisfies FeedbackReport);
   } catch (err) {
     console.error("[feedback]", err);
+    after(() => trackEvent("feedback_failed"));
     return NextResponse.json({ error: "Couldn't generate feedback. Please try again." }, { status: 500 });
   }
 }

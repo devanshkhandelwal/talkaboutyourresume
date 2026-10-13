@@ -56,3 +56,43 @@ export async function saveEmail(email: string, meta: Record<string, string>) {
   await redis(["SADD", "emails", email]);
   await redis(["LPUSH", "email_log", entry]);
 }
+
+// Anonymous usage counts: one Redis hash per day, `events:YYYY-MM-DD`, with a
+// field per event. Only counts are stored: no emails, resumes or IPs.
+export const EVENTS = [
+  "resume_read",
+  "resume_failed",
+  "interview_started",
+  "retry_started",
+  "custom_questions_used",
+  "interview_ended",
+  "feedback_generated",
+  "feedback_failed",
+  "waitlist_signup",
+] as const;
+export type UsageEvent = (typeof EVENTS)[number] | `interviewer:${string}`;
+
+/** Adds one to today's count. Never throws: tracking must not break a request. */
+export async function trackEvent(event: UsageEvent): Promise<void> {
+  if (!redisEnabled) return;
+  try {
+    const key = `events:${new Date().toISOString().slice(0, 10)}`;
+    await redis(["HINCRBY", key, event, 1]);
+    await redis(["EXPIRE", key, 60 * 60 * 24 * 400]);
+  } catch (err) {
+    console.error("[track]", event, err);
+  }
+}
+
+/** Counts for the last `days` days (UTC), newest first. */
+export async function readEvents(days: number): Promise<{ day: string; counts: Record<string, number> }[]> {
+  const list = Array.from({ length: days }, (_, i) => new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10));
+  return Promise.all(
+    list.map(async (day) => {
+      const flat = ((await redis(["HGETALL", `events:${day}`])) ?? []) as string[];
+      const counts: Record<string, number> = {};
+      for (let i = 0; i + 1 < flat.length; i += 2) counts[flat[i]] = Number(flat[i + 1]) || 0;
+      return { day, counts };
+    }),
+  );
+}
