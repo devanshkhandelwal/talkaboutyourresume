@@ -76,7 +76,7 @@
 .home-hero-shade { display: none; }
 /* About half the window, so the headline wraps before it reaches the scene. */
 .home-hero-copy { position: relative; z-index: 1; max-width: min(780px, 47vw); padding: 120px var(--gutter) 200px; }
-.home-h1 { margin: 0; max-width: 11em; font-weight: 500; font-size: clamp(2.3rem, 4.2vw, 3.6rem); line-height: 1.06; letter-spacing: -0.025em; text-wrap: pretty; }
+.home-h1 { margin: 0; max-width: 11em; font-weight: 500; font-size: clamp(2.3rem, 4.2vw, 3.6rem); line-height: 1.06; letter-spacing: -0.025em; text-wrap: balance; }
 .home .nowrap { white-space: nowrap; }
 .home-lede { margin: 20px 0 32px; max-width: 40ch; font-size: 1.1875rem; line-height: 1.5; color: var(--ink-2); }
 .home-cta-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }

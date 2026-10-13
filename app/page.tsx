@@ -24,7 +24,7 @@ export default function Home() {
           <div className="home-hero-shade" aria-hidden />
           <div className="home-hero-copy">
             <h1 id="hero-title" className="home-h1">
-              Practice the <span className="nowrap">follow-up</span> questions on your own resume
+              Practice talking about stuff you&rsquo;ve done
             </h1>
             <p className="home-lede">
               Upload your resume and talk with an AI interviewer that asks about what you actually wrote. Then see which answers held up.

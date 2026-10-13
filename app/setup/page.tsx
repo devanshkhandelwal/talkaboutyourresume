@@ -138,15 +138,15 @@ export default function SetupPage() {
 
   return (
     <>
-      <SiteHeader right={<span className="subtle">{BETA ? "Free beta" : "Free plan"} · up to {FREE_MINUTES} minutes</span>} />
-      <main className="wrap" style={{ maxWidth: 1080, paddingTop: 24, paddingBottom: 96 }}>
-        <h1 className="display" style={{ fontSize: "clamp(2.2rem, 6vw, 3rem)", marginBottom: 24 }}>
+      <SiteHeader right={<span className="subtle">Up to {FREE_MINUTES} minutes{BETA ? ", free" : ""}</span>} />
+      <main className="wrap" style={{ maxWidth: "calc(1080px + 2 * var(--gutter))", paddingTop: 24, paddingBottom: 96 }}>
+        <h1 className="display h1" style={{ marginBottom: 24 }}>
           Set up your interview
         </h1>
 
-        <div className="card" style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 16, padding: "12px 12px 12px 16px", borderRadius: 18, maxWidth: "100%" }}>
-          <span style={{ width: 44, height: 44, borderRadius: 12, background: "var(--warm-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--warm-ink)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <div className="card" style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 16, padding: "12px 12px 12px 12px", maxWidth: "100%" }}>
+          <span style={{ width: 44, height: 44, borderRadius: 8, border: "2px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
               <path d="M14 3v5h5" />
               <path d="M9 13h6" />
@@ -154,16 +154,16 @@ export default function SetupPage() {
             </svg>
           </span>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: "block", fontWeight: 700, overflowWrap: "anywhere" }}>{pending.status === "idle" ? profile?.fileName : pending.fileName}</span>
+            <span style={{ display: "block", fontWeight: 600, overflowWrap: "anywhere" }}>{pending.status === "idle" ? profile?.fileName : pending.fileName}</span>
             {reading ? (
               <span role="status" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--ink-3)" }}>
                 <span className="spinner" aria-hidden style={{ width: 14, height: 14, borderWidth: 2 }} />
                 Reading your resume. Pick an interviewer meanwhile.
               </span>
             ) : failed ? (
-              <span style={{ display: "block", fontSize: 14, color: "var(--error-ink)" }}>Couldn&apos;t read this one.</span>
+              <span style={{ display: "block", fontSize: 14, color: "var(--ink-2)" }}>Couldn&apos;t read this one.</span>
             ) : (
-              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--good-ink)" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--ink-2)" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M5 12l5 5L20 7" />
                 </svg>
@@ -173,7 +173,7 @@ export default function SetupPage() {
           </span>
           {!reading && (
             <>
-              <label htmlFor={replaceId} className={`btn btn-sm upload-btn ${failed ? "btn-dark" : "btn-light"}`} style={failed ? undefined : { background: "var(--bg)" }}>
+              <label htmlFor={replaceId} className={`btn btn-sm upload-btn ${failed ? "btn-dark" : "btn-light"}`}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M21 12a9 9 0 1 1-3-6.7" />
                   <path d="M21 4v5h-5" />
@@ -206,22 +206,15 @@ export default function SetupPage() {
                   type="button"
                   aria-pressed={on}
                   onClick={() => setPicked(i.id)}
-                  style={{
-                    textAlign: "left", cursor: "pointer", padding: 18, borderRadius: 18, background: "var(--card)", color: "var(--ink)",
-                    display: "flex", flexDirection: "column", alignItems: "flex-start",
-                    border: `2px solid ${on ? "var(--ink)" : "var(--line)"}`,
-                    boxShadow: on ? "0 12px 28px -18px rgba(var(--shadow-rgb), 0.5)" : "none",
-                  }}
+                  className="pick"
                 >
                   <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                     <Avatar character={i.id} size={64} decorative />
-                    {i.pro && (
-                      <span style={{ padding: "3px 9px", borderRadius: 999, background: "var(--card-2)", color: "var(--ink-2)", fontSize: 12, fontWeight: 700 }}>Pro</span>
-                    )}
+                    {i.pro && <span className="chip chip-pro">Pro</span>}
                   </span>
-                  <span style={{ marginTop: 14, fontWeight: 700, fontSize: "1.0625rem" }}>{i.name}</span>
-                  <span style={{ marginTop: 4, fontSize: 14, color: "var(--ink-2)", lineHeight: 1.4 }}>{i.blurb}</span>
-                  <span style={{ marginTop: 12, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-3)" }}>{i.level}</span>
+                  <span style={{ marginTop: 14, fontWeight: 600, fontSize: "1.0625rem" }}>{i.name}</span>
+                  <span className="pick-sub" style={{ marginTop: 4, fontSize: 14, lineHeight: 1.4 }}>{i.blurb}</span>
+                  <span className="pick-sub" style={{ marginTop: 12, fontSize: 13, fontWeight: 600 }}>{i.level}</span>
                 </button>
               );
             })}
@@ -269,13 +262,13 @@ export default function SetupPage() {
           {questions.length > 0 && (
             <ul aria-label="Your questions" style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
               {questions.map((q, i) => (
-                <li key={q} className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 10px 10px 16px", borderRadius: 14 }}>
+                <li key={q} className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 8px 8px 14px" }}>
                   <span style={{ flex: "1 1 auto", minWidth: 0, overflowWrap: "anywhere" }}>{q}</span>
                   <button
                     type="button"
                     onClick={() => removeQuestion(i)}
                     aria-label={`Remove question: ${q}`}
-                    style={{ flex: "0 0 auto", width: 36, height: 36, borderRadius: 10, border: "1px solid var(--line-2)", background: "var(--bg)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                    className="icon-btn"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
                       <path d="M6 6l12 12M18 6L6 18" />
@@ -296,7 +289,7 @@ export default function SetupPage() {
                   key={sq}
                   type="button"
                   onClick={() => addQuestion(sq)}
-                  style={{ minHeight: 36, padding: "0 14px", borderRadius: 999, border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                  className="chip-btn"
                 >
                   + {sq}
                 </button>
@@ -328,7 +321,7 @@ export default function SetupPage() {
                 key={q.label}
                 type="button"
                 onClick={() => setNote((n) => (n.trim() ? n.trimEnd() + "\n" : "") + q.text)}
-                style={{ minHeight: 36, padding: "0 14px", borderRadius: 999, border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                className="chip-btn"
               >
                 {q.label}
               </button>
@@ -338,7 +331,8 @@ export default function SetupPage() {
 
         <section
           aria-label="Your interview"
-          style={{ marginTop: 48, padding: 24, borderRadius: 24, background: "var(--card)", border: "2px solid var(--ink)", boxShadow: "0 24px 48px -32px rgba(var(--shadow-rgb), 0.45)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}
+          className="card card-lg"
+          style={{ marginTop: 48, padding: 24, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}
         >
           <Avatar character={chosen.id} size={72} decorative />
           <div style={{ flex: "1 1 240px", minWidth: 0 }}>
@@ -352,7 +346,7 @@ export default function SetupPage() {
               {chosen.pro && BETA ? " · Pro interviewers are free during beta" : ""}
             </p>
           </div>
-          <button type="button" className="btn btn-dark" style={{ minHeight: 60, fontSize: 18 }} onClick={onStart} disabled={failed || waiting} aria-busy={waiting}>
+          <button type="button" className="btn btn-dark" style={{ minHeight: 56, fontSize: 18 }} onClick={onStart} disabled={failed || waiting} aria-busy={waiting}>
             {waiting ? (
               <>
                 <span className="spinner" aria-hidden />

@@ -5,8 +5,8 @@ import type { BalanceResponse } from "@/lib/types";
 
 /** Rounded so it reads as a live count, not a precise promise: "330+", then "Only 42" when low. */
 function count(n: number) {
-  if (n >= 100) return { lead: "", num: `${Math.floor(n / 10) * 10}+`, rest: " free interviews left" };
-  return { lead: "Only ", num: String(n), rest: n === 1 ? " free interview left" : " free interviews left" };
+  if (n >= 100) return { lead: "", num: `${Math.floor(n / 10) * 10}+`, rest: " free interviews left in Beta" };
+  return { lead: "Only ", num: String(n), rest: n === 1 ? " free interview left in Beta" : " free interviews left in Beta" };
 }
 
 /**

@@ -280,13 +280,14 @@ export default function InterviewPage() {
             ? "Thinking"
             : "Listening";
   const recent = lines.slice(-2);
-  // Call controls sit on the dark stage: filled white when on, glassy when off.
-  // Labels never change; the icon (slashed when off) and aria-pressed carry the state.
+  // Call controls are the 1-bit card drawn in white on the black stage: filled
+  // white when on, outlined when off. Labels never change; the icon (slashed
+  // when off) and aria-pressed carry the state.
   const btn = (on: boolean): React.CSSProperties => ({
-    minHeight: 48, padding: "0 18px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 8,
-    fontSize: 15, fontWeight: 700, cursor: "pointer",
-    background: on ? "#fff" : "rgba(255,255,255,0.08)", color: on ? "#16161a" : "var(--inv-ink)",
-    border: `1px solid ${on ? "#fff" : "var(--inv-line)"}`,
+    minHeight: 48, padding: "0 16px", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8,
+    fontSize: 15, fontWeight: 600, cursor: "pointer",
+    background: on ? "#fff" : "#000", color: on ? "#000" : "#fff",
+    border: "2px solid #fff", boxShadow: "3px 3px 0 #fff",
   });
 
   return (
@@ -301,7 +302,7 @@ export default function InterviewPage() {
           <span className="wordmark" style={{ color: "var(--inv-ink)" }}>talkaboutyourresume</span>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span aria-label="Current time" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "1.0625rem", whiteSpace: "nowrap" }}>
+          <span aria-label="Current time" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, fontSize: "1.0625rem", whiteSpace: "nowrap" }}>
             {now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
           {canFullscreen && (
@@ -311,7 +312,7 @@ export default function InterviewPage() {
               aria-pressed={fullscreen}
               aria-label="Full screen"
               title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
-              style={{ width: 40, height: 40, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.08)", color: "var(--inv-ink)", border: "1px solid var(--inv-line)", cursor: "pointer" }}
+              style={{ width: 40, height: 40, borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#000", color: "#fff", border: "2px solid #fff", cursor: "pointer" }}
             >
               <FullscreenIcon on={fullscreen} />
             </button>
@@ -320,11 +321,11 @@ export default function InterviewPage() {
       </header>
 
       <main aria-label="Interview" style={{ position: "relative", flex: "1 1 auto", minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "0 24px", textAlign: "center" }}>
-        <span style={{ position: "relative", borderRadius: "50%", boxShadow: "0 0 0 8px rgba(255,255,255,0.06)" }}>
+        <span style={{ position: "relative", borderRadius: "50%", boxShadow: "0 0 0 3px #000, 0 0 0 5px #fff" }}>
           <span aria-hidden className={`speaking-ring${voiceActive ? " on" : ""}`} />
           <Avatar character={interviewer.id} size={160} talking={voiceActive} open={mouth} />
         </span>
-        <p className="display" style={{ fontSize: "1.5rem", fontWeight: 700 }}>{interviewer.name}</p>
+        <p className="display" style={{ fontSize: "1.5rem" }}>{interviewer.name}</p>
 
         {phase === "lobby" ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
@@ -333,7 +334,7 @@ export default function InterviewPage() {
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
               {micCheck === "on" ? (
-                <span style={{ ...btn(false), cursor: "default", fontWeight: 500, color: "var(--inv-ink-2)" }}>
+                <span style={{ ...btn(false), cursor: "default", fontWeight: 500, boxShadow: "none" }}>
                   <MicLevel read={() => micCheckRef.current?.level() ?? 0} />
                   Say something. The bars should move.
                 </span>
@@ -349,7 +350,7 @@ export default function InterviewPage() {
               </button>
             </div>
             {/* The one primary action here: brand blue, so it outranks the white "on" toggles. */}
-            <button className="btn btn-accent" style={{ minHeight: 60, fontSize: 18, padding: "0 32px" }} onClick={join}>
+            <button className="btn btn-accent" style={{ minHeight: 56, fontSize: 18, padding: "0 28px", borderColor: "#fff", boxShadow: "3px 3px 0 #fff" }} onClick={join}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <rect x="3" y="6" width="13" height="12" rx="2" />
                 <path d="M16 10l5-3v10l-5-3" />
@@ -388,7 +389,7 @@ export default function InterviewPage() {
             muted
             playsInline
             aria-label="Your camera"
-            style={{ position: "absolute", right: 24, bottom: 16, width: "clamp(132px, 22vw, 280px)", aspectRatio: "16 / 10", objectFit: "cover", borderRadius: 16, border: "1px solid var(--inv-line)", transform: "scaleX(-1)", background: "var(--inv-fill)", boxShadow: "0 12px 32px -12px rgba(0,0,0,0.6)" }}
+            style={{ position: "absolute", right: 24, bottom: 16, width: "clamp(132px, 22vw, 280px)", aspectRatio: "16 / 10", objectFit: "cover", borderRadius: 8, border: "2px solid #fff", transform: "scaleX(-1)", background: "#000", boxShadow: "3px 3px 0 #fff" }}
           />
         )}
       </main>
@@ -397,7 +398,7 @@ export default function InterviewPage() {
         {captions && recent.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center", textAlign: "center", width: "100%" }}>
             {recent.map((l, i) => (
-              <p key={lines.length - recent.length + i} style={{ margin: 0, maxWidth: 720, padding: "8px 14px", borderRadius: 10, background: l.role === "assistant" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)", fontSize: 15 }}>
+              <p key={lines.length - recent.length + i} style={{ margin: 0, maxWidth: 720, padding: "8px 14px", borderRadius: 8, border: `2px solid ${l.role === "assistant" ? "#fff" : "#5f636b"}`, background: "#000", fontSize: 15 }}>
                 <strong>{l.role === "assistant" ? "Interviewer" : "You"}:</strong> {l.content}
               </p>
             ))}
@@ -429,7 +430,7 @@ export default function InterviewPage() {
             </button>
             {confirmEnd ? (
               <span style={{ display: "inline-flex", gap: 8 }}>
-                <button type="button" onClick={finish} style={{ ...btn(false), background: "#e5484d", borderColor: "#e5484d", color: "#fff" }}>
+                <button type="button" onClick={finish} style={{ ...btn(false), background: "#e5484d", color: "#fff" }}>
                   End and get feedback
                 </button>
                 <button type="button" onClick={() => setConfirmEnd(false)} style={btn(false)}>
@@ -437,7 +438,7 @@ export default function InterviewPage() {
                 </button>
               </span>
             ) : (
-              <button type="button" onClick={() => setConfirmEnd(true)} style={{ ...btn(false), background: "#e5484d", borderColor: "#e5484d", color: "#fff" }}>
+              <button type="button" onClick={() => setConfirmEnd(true)} style={{ ...btn(false), background: "#e5484d", color: "#fff" }}>
                 <EndIcon />
                 End
               </button>
@@ -477,23 +478,23 @@ function PrivacyCard({ onClose }: { onClose: () => void }) {
       aria-label="Privacy"
       tabIndex={-1}
       className="privacy-card"
-      style={{ position: "absolute", bottom: "calc(100% + 10px)", left: "50%", width: "min(380px, calc(100vw - 32px))", padding: 20, borderRadius: 18, background: "#fff", color: "#16161a", textAlign: "left", boxShadow: "0 24px 48px -16px rgba(0,0,0,0.55)", outline: "none", zIndex: 10 }}
+      style={{ position: "absolute", bottom: "calc(100% + 10px)", left: "50%", width: "min(380px, calc(100vw - 32px))", padding: 20, borderRadius: 10, background: "#fff", color: "#000", border: "2px solid #000", textAlign: "left", outline: "none", zIndex: 10 }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-        <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>Your privacy</p>
-        <button type="button" onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: 0, background: "#f3f3f5", color: "#16161a", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ margin: 0, fontWeight: 600, fontSize: 16 }}>Your privacy</p>
+        <button type="button" onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 8, border: "2px solid #000", background: "#fff", color: "#000", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
             <path d="M6 6l12 12M18 6L6 18" />
           </svg>
         </button>
       </div>
-      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8, fontSize: 14, lineHeight: 1.45, color: "#3d3d46" }}>
+      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8, fontSize: 14, lineHeight: 1.45, color: "#33363d" }}>
         <li>Your voice is streamed to Deepgram only to run this conversation.</li>
         <li>The recording stays in this browser tab so you can replay or download it. It isn&apos;t uploaded to us.</li>
         <li>Your resume and transcript go to Anthropic to ask questions and write feedback. We don&apos;t store them.</li>
         <li>Nothing is shared with employers.</li>
       </ul>
-      <a href="/privacy" target="_blank" rel="noopener" style={{ display: "inline-block", marginTop: 12, fontSize: 13, color: "#2b4bf2" }}>
+      <a href="/privacy" target="_blank" rel="noopener" style={{ display: "inline-block", marginTop: 12, fontSize: 13, color: "#1f3fd1" }}>
         Full privacy page (opens a new tab)
       </a>
     </div>
