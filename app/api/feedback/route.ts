@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { askJson, MODELS } from "@/lib/claude";
 import { trackEvent } from "@/lib/limits";
-import type { FeedbackReport, ResumeProfile, TranscriptLine } from "@/lib/types";
+import type { ClaudeUsage, FeedbackReport, ResumeProfile, TranscriptLine } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       .join("\n");
     const topics = profile?.topics.map((t) => `- ${t.title}: ${t.claim}`).join("\n") ?? "";
 
-    const report = await askJson<FeedbackReport>({
+    const { data: report, usage } = await askJson<FeedbackReport>({
       model: MODELS.feedback,
       system: SYSTEM,
       user: `<resume_topics>\n${topics}\n</resume_topics>\n\n<transcript>\n${lines}\n</transcript>`,
@@ -92,7 +92,8 @@ export async function POST(req: NextRequest) {
       bestMoment: report.bestMoment ?? null,
       answers: sorted,
       weakestIndex: newWeakest,
-    } satisfies FeedbackReport);
+      usage,
+    } satisfies FeedbackReport & { usage: ClaudeUsage });
   } catch (err) {
     console.error("[feedback]", err);
     after(() => trackEvent("feedback_failed"));

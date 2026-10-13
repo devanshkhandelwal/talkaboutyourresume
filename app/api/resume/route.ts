@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { trackEvent } from "@/lib/limits";
 import { askJson, MODELS } from "@/lib/claude";
-import type { ResumeProfile, ResumeTopic } from "@/lib/types";
+import type { ClaudeUsage, ResumeProfile, ResumeTopic } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = await askJson<{
+    const { data: parsed, usage } = await askJson<{
       name: string | null;
       headline: string;
       topics: ResumeTopic[];
@@ -108,7 +108,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "We couldn't find anything to ask about. Is this a resume?" }, { status: 422 });
     }
     after(() => trackEvent("resume_read"));
-    return NextResponse.json(profile);
+    // usage rides along for the browser's cost display; it isn't part of the profile.
+    return NextResponse.json({ ...profile, usage } satisfies ResumeProfile & { usage: ClaudeUsage });
   } catch (err) {
     console.error("[resume]", err);
     after(() => trackEvent("resume_failed"));

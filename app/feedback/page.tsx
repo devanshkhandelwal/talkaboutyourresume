@@ -12,7 +12,9 @@ import { PixelCalendar } from "@/components/PixelCalendar";
 import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
 import { AudioPlayer } from "@/components/AudioPlayer";
-import type { FeedbackReport, InterviewSession } from "@/lib/types";
+import { CostRows } from "@/components/LiveCost";
+import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
+import type { ClaudeUsage, FeedbackReport, InterviewSession } from "@/lib/types";
 
 // Green for "strong" everywhere on this page, matching the progress bar.
 const CHIP = { strong: "chip-good", needs_detail: "chip-detail", vague: "chip-vague" } as const;
@@ -90,6 +92,7 @@ export default function FeedbackPage() {
   const [email, setEmail] = useState("");
   const [saved, setSaved] = useState<"idle" | "saving" | "done">("idle");
   const [practiced, setPracticed] = useState<string[]>([]);
+  const [cost, setCost] = useState<CostLedger | null>(null);
 
   useEffect(() => {
     const s = store.getSession();
@@ -98,6 +101,7 @@ export default function FeedbackPage() {
     const answered = s?.transcript.filter((l) => l.role === "user").length ?? 0;
     setPracticed(s && answered >= 2 ? recordPractice(new Date(s.endedAt ?? Date.now())) : getPracticedDays());
     const r = store.getReport();
+    setCost(costLedger.get());
     setLoaded(true);
     if (r) {
       setReport(r);
@@ -113,8 +117,11 @@ export default function FeedbackPage() {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Couldn't generate feedback.");
-        store.setReport(data);
-        setReport(data);
+        const { usage, ...report } = data as FeedbackReport & { usage?: ClaudeUsage };
+        costLedger.addClaude("feedback", usage);
+        setCost(costLedger.get());
+        store.setReport(report);
+        setReport(report);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Couldn't generate feedback."));
   }, []);
@@ -356,6 +363,14 @@ export default function FeedbackPage() {
         </div>
 
         <aside aria-label="Your practice" className="aside-sticky">
+          {cost && (cost.voiceMs > 0 || cost.claude.length > 0) && (
+            <section aria-labelledby="cost-title" className="card" style={{ padding: 20 }}>
+              <h2 id="cost-title" style={{ margin: "0 0 10px", fontSize: "1.125rem", fontWeight: 600 }}>
+                What this interview cost
+              </h2>
+              <CostRows b={costBreakdown(cost)} feedback={!tooShort && !report && !error ? "pending" : "none"} />
+            </section>
+          )}
           <section aria-labelledby="month-title" className="card" style={{ padding: 20 }}>
             <h2 id="month-title" style={{ margin: "0 0 14px", fontSize: "1.125rem", fontWeight: 600 }}>
               {monthName}

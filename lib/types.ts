@@ -52,3 +52,12 @@ export type InterviewSession = {
 export type BalanceResponse = {
   estInterviewsLeft: number;
 };
+
+/** Token counts from a Claude response's `usage`, plus the model that produced them. */
+export type ClaudeUsage = {
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+};
