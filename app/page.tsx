@@ -102,10 +102,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* The scene again as a closing band, so the page ends where it started. */}
         <section className="home-close" aria-labelledby="close-title">
-          <PixelScene position="50% 22%" />
-          <div className="home-hero-shade" aria-hidden />
           <div className="home-close-inner">
             <h2 id="close-title" className="home-h2 on-scene">
               Your next interviewer will ask a <span className="nowrap">follow-up</span>. Hear it here first.
