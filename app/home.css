@@ -1,11 +1,11 @@
 /*
-  Home page. Design plan (frontend-design):
+  Home page. Design plan (frontend-design, second pass):
   - Subject: a resume being questioned line by line. Signature element: a resume
-    excerpt with the claim highlighted and the interviewer's follow-up in pen.
+    excerpt with the claim highlighted and the interviewer's follow-up in pen,
+    sitting on a full-bleed ballpoint-blue panel (the one bold move).
   - Palette: paper white, cool ground, true black ink, ballpoint blue, highlighter yellow.
-  - Type: Source Serif 4 is the document voice (headlines, resume, answers);
-    Source Sans 3 is the interface voice.
-  - Layout: left aligned throughout; one bold moment (the highlighter), the rest quiet.
+  - Type: Schibsted Grotesk only. Heavy and tight for headlines, plain for text.
+  - Layout: full width. Content runs edge to edge with side gutters, no centered column.
 */
 .home {
   --paper: #ffffff;
@@ -16,7 +16,10 @@
   --rule: #d9dde4;
   --pen: #1f3fd1;
   --pen-soft: #e6eafb;
+  --panel: #1f3fd1;
+  --on-panel: #ffffff;
   --hl: #ffe45c;
+  --gutter: clamp(16px, 4.5vw, 72px);
 
   /* Shared components (header, badge, buttons) pick these up inside the home page. */
   --bg: var(--ground);
@@ -26,10 +29,10 @@
   --accent: var(--pen);
   --accent-ink: var(--pen);
   --accent-soft: var(--pen-soft);
-  --primary-bg: var(--pen);
+  --primary-bg: var(--ink);
   --primary-ink: #ffffff;
-  --display: var(--font-serif), Georgia, serif;
-  --body: var(--font-sans), system-ui, sans-serif;
+  --display: var(--font-home), system-ui, sans-serif;
+  --body: var(--font-home), system-ui, sans-serif;
 
   min-height: 100vh;
   background: var(--ground);
@@ -47,73 +50,80 @@
   --rule: #2a303b;
   --pen: #8ea2ff;
   --pen-soft: #1b2350;
+  --panel: #18288a;
   --hl: rgba(255, 214, 10, 0.32);
   --primary-ink: #0d1015;
 }
 
-.home .wordmark { font-family: var(--font-serif); font-weight: 700; font-size: 20px; letter-spacing: -0.01em; color: var(--ink); }
+/* Full width: every row spans the window, with gutters instead of a centered column. */
+.home .wrap { max-width: none; padding-left: var(--gutter); padding-right: var(--gutter); }
+.home .wordmark { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; color: var(--ink); }
 .home .nav a { color: var(--ink-2); font-weight: 600; }
-.home .btn { border-radius: 8px; }
+.home .btn { border-radius: 10px; }
 .home :focus-visible { outline-color: var(--pen); }
 
-/* Hero: copy on the left, the marked-up resume on the right. */
-.home-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: center; gap: clamp(32px, 6vw, 80px); padding-top: clamp(24px, 6vw, 72px); padding-bottom: clamp(40px, 6vw, 80px); }
-/* Keeps compound words like "follow-up" from breaking at the hyphen in headlines. */
+/* Hero: copy on the left; the right half is a blue panel that bleeds to the window edge. */
+.home-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: min(720px, calc(100vh - 88px)); }
+.home-hero-copy { display: flex; flex-direction: column; justify-content: center; padding: clamp(32px, 6vw, 80px) clamp(24px, 4vw, 64px) clamp(40px, 6vw, 80px) var(--gutter); }
+.home-hero-panel { display: flex; flex-direction: column; justify-content: center; padding: clamp(32px, 5vw, 72px) var(--gutter) clamp(32px, 5vw, 72px) clamp(24px, 4vw, 64px); background: var(--panel); color: var(--on-panel); }
+.home-h1 { margin: 0; max-width: 14ch; font-weight: 800; font-size: clamp(2.75rem, 6vw, 5.5rem); line-height: 0.98; letter-spacing: -0.035em; color: var(--ink); text-wrap: balance; }
 .home .nowrap { white-space: nowrap; }
-.home-h1 { margin: 0; max-width: 15ch; font-family: var(--font-serif); font-optical-sizing: auto; font-weight: 600; font-size: clamp(2.5rem, 6vw, 4.25rem); line-height: 1.02; letter-spacing: -0.025em; color: var(--ink); text-wrap: balance; }
-.home-lede { margin: 24px 0 32px; max-width: 36ch; font-size: 1.25rem; line-height: 1.5; color: var(--ink-2); }
+.home-lede { margin: 28px 0 36px; max-width: 38ch; font-size: 1.25rem; line-height: 1.5; color: var(--ink-2); }
 
-/* Example picker: plain text tabs, underlined when chosen. */
-.role-tabs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 20px; margin-bottom: 14px; font-size: 0.9375rem; }
-.role-tabs-label { color: var(--ink-3); }
-.role-tabs button { padding: 6px 0; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-3); font: inherit; font-weight: 600; cursor: pointer; }
-.role-tabs button:hover { color: var(--ink); }
-.role-tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+/* Example picker on the blue panel: plain text tabs, underlined when chosen. */
+.role-tabs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 22px; margin-bottom: 18px; font-size: 1rem; }
+.role-tabs-label { color: rgba(255, 255, 255, 0.72); }
+.role-tabs button { padding: 6px 0; border: 0; border-bottom: 2px solid transparent; background: none; color: rgba(255, 255, 255, 0.72); font: inherit; font-weight: 700; cursor: pointer; }
+.role-tabs button:hover { color: #ffffff; }
+.role-tabs button[aria-pressed="true"] { color: #ffffff; border-bottom-color: #ffffff; }
+.role-tabs button:focus-visible { outline-color: #ffffff; }
 
-/* The resume excerpt: one sheet of paper, the only raised surface on the page. */
-.paper { margin: 0; padding: clamp(24px, 3.6vw, 44px); background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; box-shadow: 0 30px 60px -40px rgba(15, 23, 42, 0.35); font-family: var(--font-serif); }
-.paper-role { margin: 0; font-size: 1.375rem; font-weight: 700; line-height: 1.3; }
-.paper-org { margin: 2px 0 22px; font-size: 1.0625rem; font-style: italic; color: var(--ink-3); }
-.paper-list { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 22px; font-size: 1.25rem; line-height: 1.5; }
+/* The resume excerpt: the only raised surface on the page. */
+.paper { margin: 0; max-width: 620px; padding: clamp(24px, 3.4vw, 44px); background: var(--paper); color: var(--ink); border-radius: 6px; box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.55); }
+.paper-role { margin: 0; font-size: 1.375rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.3; }
+.paper-org { margin: 2px 0 22px; font-size: 1.0625rem; color: var(--ink-3); }
+.paper-list { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 22px; font-size: 1.25rem; line-height: 1.45; }
 .paper-list li::marker { color: var(--ink-3); }
 
 /* The one orchestrated moment: a highlighter sweeps across the claim, then the note appears. */
 .mark { padding: 0 2px; background-image: linear-gradient(var(--hl), var(--hl)); background-repeat: no-repeat; background-position: 0 88%; background-size: 0% 72%; -webkit-box-decoration-break: clone; box-decoration-break: clone; animation: mark-sweep 650ms cubic-bezier(0.3, 0.7, 0.3, 1) 250ms forwards; }
 @keyframes mark-sweep { to { background-size: 100% 72%; } }
-.pen-note { margin: 14px 0 0; padding-left: 16px; border-left: 2px solid var(--pen); font-family: var(--font-sans); font-size: 1.1875rem; line-height: 1.4; color: var(--pen); animation: note-in 360ms ease-out 850ms both; }
+.pen-note { margin: 14px 0 0; padding-left: 16px; border-left: 3px solid var(--pen); font-size: 1.1875rem; font-weight: 600; line-height: 1.35; color: var(--pen); animation: note-in 360ms ease-out 850ms both; }
 .pen-note-who { display: block; margin-bottom: 2px; font-size: 0.8125rem; font-weight: 600; color: var(--ink-3); }
 @keyframes note-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-/* Sections below the hero are separated by space alone (no hairline rules), left aligned. */
-.home-section { padding-top: clamp(40px, 6vw, 72px); padding-bottom: clamp(40px, 6vw, 72px); }
-.home-h2 { margin: 0 0 10px; max-width: 22ch; font-family: var(--font-serif); font-weight: 600; font-size: clamp(1.75rem, 3.5vw, 2.5rem); line-height: 1.1; letter-spacing: -0.015em; color: var(--ink); text-wrap: balance; }
-.home-sub { margin: 0 0 32px; max-width: 60ch; color: var(--ink-2); }
+/* Sections below the hero are separated by space alone. */
+.home-section { padding-top: clamp(48px, 7vw, 96px); padding-bottom: clamp(48px, 7vw, 96px); }
+.home-h2 { margin: 0 0 12px; font-weight: 800; font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.02; letter-spacing: -0.03em; color: var(--ink); text-wrap: balance; }
+.home-sub { margin: 0 0 40px; max-width: 64ch; color: var(--ink-2); }
 
-/* Before and after, read as a transcript. */
-.transcript { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: 22px 28px; max-width: 880px; margin: 0; }
-.transcript dt { padding-top: 5px; font-size: 0.875rem; font-weight: 600; color: var(--ink-3); }
-.transcript dd { margin: 0; max-width: 62ch; font-family: var(--font-serif); font-size: 1.25rem; line-height: 1.5; color: var(--ink); }
+/* Before and after, read as a transcript across the full width. */
+.transcript { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(0, 3fr); gap: 26px 32px; margin: 0; }
+.transcript dt { padding-top: 6px; font-size: 0.9375rem; font-weight: 700; color: var(--ink-3); }
+.transcript dd { margin: 0; max-width: 64ch; font-size: clamp(1.25rem, 1.8vw, 1.625rem); line-height: 1.4; letter-spacing: -0.01em; color: var(--ink); }
 .transcript dd.before { color: var(--ink-3); }
 
-/* Pricing: two plain columns side by side, not two cards. */
-.pricing { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 64px; max-width: 880px; }
+/* Pricing: two plain columns spread across the page, not two cards. */
+.pricing { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px var(--gutter); }
 .plan-name { margin: 0; font-size: 1.125rem; font-weight: 700; }
-.plan-price { margin: 6px 0 0; font-family: var(--font-serif); font-size: 3rem; font-weight: 600; line-height: 1; }
-.plan-price small { font-family: var(--font-sans); font-size: 1rem; font-weight: 400; color: var(--ink-3); }
+.plan-price { margin: 6px 0 0; font-size: 3.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.plan-price small { font-size: 1rem; font-weight: 500; letter-spacing: 0; color: var(--ink-3); }
 .plan ul { margin: 20px 0 24px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: var(--ink-2); }
-.plan-soon { margin: 0; color: var(--pen); font-weight: 600; }
+.plan-soon { margin: 0; color: var(--pen); font-weight: 700; }
 
-/* Closing line and a second way in. */
-.home-close { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px 48px; }
+/* Closing line on the left, a second way in pinned to the right edge. */
+.home-close { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px var(--gutter); }
 
-@media (max-width: 880px) {
-  .home-hero { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) {
+  .home-hero { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .home-hero-copy { padding-right: var(--gutter); }
+  .home-hero-panel { padding-left: var(--gutter); }
   .home-close { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   .home { font-size: 16px; }
   .transcript { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .transcript dd { margin-bottom: 16px; font-size: 1.125rem; }
+  .transcript dd { margin-bottom: 18px; }
   .pricing { grid-template-columns: minmax(0, 1fr); }
 }
 

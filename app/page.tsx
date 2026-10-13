@@ -16,8 +16,8 @@ export default function Home() {
       />
 
       <main id="top">
-        <section className="wrap home-hero" aria-labelledby="hero-title">
-          <div>
+        <section className="home-hero" aria-labelledby="hero-title">
+          <div className="home-hero-copy">
             <h1 id="hero-title" className="home-h1">
               Every line on your resume has a <span className="nowrap">follow-up</span> question.
             </h1>
@@ -26,7 +26,9 @@ export default function Home() {
             </p>
             <UploadButton />
           </div>
-          <ResumeExample />
+          <div className="home-hero-panel">
+            <ResumeExample />
+          </div>
         </section>
 
         <section className="wrap home-section" aria-labelledby="answers-title">
