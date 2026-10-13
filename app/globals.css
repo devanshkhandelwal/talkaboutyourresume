@@ -180,3 +180,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   /* Keep a gentle, non-moving sign of progress instead of a frozen spinner. */
   .spinner { animation: breathe 1.6s ease-in-out infinite !important; }
 }
+
+/* Privacy card on the interview lobby: grows out of the "Privacy" link it belongs to. */
+.privacy-card { transform: translateX(-50%); transform-origin: 50% 100%; animation: card-in 180ms ease-out; }
+@keyframes card-in { from { opacity: 0; transform: translateX(-50%) scale(0.96); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
