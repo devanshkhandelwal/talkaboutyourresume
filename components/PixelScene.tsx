@@ -2,65 +2,70 @@
 
 import { useEffect, useRef } from "react";
 
-// A pixel-art scene drawn at low resolution and scaled up crisply:
-// your desk by a big window, the city outside, a laptop mid-interview,
-// and your resume with a highlighter stroke. Seeded, so it draws the same every time.
+// A pixel-art scene drawn at low resolution and scaled up crisply: a cozy room
+// with your desk, a laptop mid-interview, your resume with a highlighter stroke,
+// a window, a lamp, a poster and a shelf. Seeded, so it draws the same every time.
 const W = 192;
 const H = 108;
-const HORIZON = 74;
 const DESK = 82;
 
 type Palette = {
-  sky: string[];
+  wall: string[];
+  wallLine: string;
+  trim: string;
+  winSky: string[];
   cloud: string;
+  curtain: string;
+  curtainFold: string;
+  shelf: string;
+  lampShade: string;
+  bulb: string;
+  glow: string | null;
   cloudShade: string;
-  sun: string;
-  sunRing: string;
-  far: string;
-  near: string;
-  win: string;
-  winOff: string;
   tree: [string, string, string];
   desk: string;
   deskTop: string;
   deskGrain: string;
-  screen: string;
   stars: boolean;
 };
 
 const DAY: Palette = {
-  sky: ["#2f7fd8", "#4a98e4", "#6fb2ee", "#9bcdf5", "#c4e3fa"],
+  wall: ["#30498f", "#35519c", "#3a58a6"],
+  wallLine: "#2d4587",
+  trim: "#eef1f6",
+  winSky: ["#6fb2ee", "#9bcdf5", "#c4e3fa"],
   cloud: "#ffffff",
+  curtain: "#f2b84b",
+  curtainFold: "#d79a2c",
+  shelf: "#8b6b4a",
+  lampShade: "#262a33",
+  bulb: "#fff1b3",
+  glow: null,
   cloudShade: "#d3e8f8",
-  sun: "#fff6c9",
-  sunRing: "#ffe48a",
-  far: "#a3c6e3",
-  near: "#7399c0",
-  win: "#fff1b3",
-  winOff: "#5f84ab",
   tree: ["#2a6f46", "#3b8f5a", "#57b06f"],
   desk: "#b97f4d",
   deskTop: "#d69b62",
   deskGrain: "#a56f3f",
-  screen: "#1f3fd1",
   stars: false,
 };
 
 const NIGHT: Palette = {
-  sky: ["#070b24", "#0d1436", "#141d4a", "#1d295e", "#283672"],
+  wall: ["#121a38", "#162043", "#1a264e"],
+  wallLine: "#10172f",
+  trim: "#8f98ae",
+  winSky: ["#070b24", "#0d1436", "#141d4a"],
   cloud: "#323f7c",
+  curtain: "#8d6420",
+  curtainFold: "#6f4d17",
+  shelf: "#5a4330",
+  lampShade: "#1a1d24",
+  bulb: "#ffe08a",
+  glow: "#2a3466",
   cloudShade: "#273266",
-  sun: "#f4f1de",
-  sunRing: "#c9c6b4",
-  far: "#202a58",
-  near: "#161d45",
-  win: "#ffd66b",
-  winOff: "#1e2650",
   tree: ["#0c2219", "#133326", "#1c4734"],
   desk: "#5a3b25",
   deskTop: "#70492e",
   deskGrain: "#4a301e",
-  screen: "#2747e8",
   stars: true,
 };
 
@@ -160,72 +165,73 @@ function draw(ctx: CanvasRenderingContext2D, p: Palette) {
     ctx.fillRect(x, y, w, h);
   };
 
-  // Sky: flat color bands, with a thin dithered seam where two bands meet.
-  for (let y = 0; y < HORIZON; y++) {
-    const f = (y / HORIZON) * (p.sky.length - 1);
+  // Back wall: flat bands with a thin dithered seam, and soft vertical panel lines.
+  for (let y = 0; y < DESK; y++) {
+    const f = (y / DESK) * (p.wall.length - 1);
     const base = Math.floor(f);
     const seam = f - base > 0.88;
     for (let x = 0; x < W; x++) {
       const up = seam && BAYER[y % 4][x % 4] % 2 === 0;
-      px(x, y, p.sky[Math.min(p.sky.length - 1, base + (up ? 1 : 0))]);
+      px(x, y, p.wall[Math.min(p.wall.length - 1, base + (up ? 1 : 0))]);
     }
   }
+  for (let x = 6; x < W; x += 14) rect(x, 0, 1, DESK, p.wallLine);
+  rect(0, 0, W, 2, p.wallLine);
 
-  if (p.stars) {
-    for (let i = 0; i < 60; i++) px(Math.floor(rng() * W), Math.floor(rng() * 46), rng() > 0.8 ? "#ffe9a8" : "#dfe6ff");
-  }
-
-  // Sun (or moon at night), upper right.
-  for (let y = -8; y <= 8; y++)
-    for (let x = -8; x <= 8; x++) {
-      const d = Math.sqrt(x * x + y * y);
-      if (d <= 5) px(156 + x, 15 + y, p.sun);
-      else if (d <= 6.5 && !p.stars) px(156 + x, 15 + y, p.sunRing);
-    }
-  if (p.stars) for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (Math.hypot(x - 2.5, y + 1.5) <= 4.2 && Math.hypot(x, y) <= 5) px(156 + x, 15 + y, p.sky[1]);
-
-  // Clouds: unions of ellipses with a shaded underside.
-  const clouds = [
-    { x: 118, y: 30, parts: [[0, 0, 9, 4], [8, -3, 7, 5], [16, 0, 8, 4]] },
-    { x: 60, y: 14, parts: [[0, 0, 7, 3], [6, -2, 6, 4], [13, 0, 6, 3]] },
-    { x: 170, y: 44, parts: [[0, 0, 6, 3], [6, -2, 6, 3], [12, 0, 5, 3]] },
-    { x: 20, y: 48, parts: [[0, 0, 6, 2], [6, -2, 5, 3], [11, 0, 5, 2]] },
-  ];
-  for (const c of clouds) {
-    for (let y = c.y - 8; y <= c.y + 6; y++)
-      for (let x = c.x - 10; x <= c.x + 30; x++) {
-        const inside = c.parts.some(([ox, oy, rx, ry]) => ((x - c.x - ox) / rx) ** 2 + ((y - c.y - oy) / ry) ** 2 <= 1);
-        if (inside) px(x, y, y >= c.y + 1 ? p.cloudShade : p.cloud);
+  // Warm lamp glow on the wall at night (dithered so it stays pixel-art).
+  if (p.glow) {
+    for (let y = 4; y < 44; y++)
+      for (let x = 108; x < 148; x++) {
+        const d = Math.hypot(x - 128, (y - 18) * 1.3);
+        if (d < 18 && (d < 11 || BAYER[y % 4][x % 4] < (18 - d) * 2)) px(x, y, p.glow);
       }
   }
 
-  // Far skyline, hazy.
-  for (let x = 0; x < W; ) {
-    const w = 5 + Math.floor(rng() * 8);
-    const h = 10 + Math.floor(rng() * 16);
-    rect(x, HORIZON - h, w, h, p.far);
-    if (rng() > 0.7) rect(x + Math.floor(w / 2), HORIZON - h - 3, 1, 3, p.far);
-    x += w;
+  // Window on the right, with sky, a cloud (or moon and stars) and curtains.
+  rect(146, 8, 36, 42, p.trim);
+  for (let y = 10; y < 48; y++) {
+    const band = Math.min(p.winSky.length - 1, Math.floor(((y - 10) / 38) * p.winSky.length));
+    rect(148, y, 32, 1, p.winSky[band]);
   }
-  // Near skyline with windows.
-  for (let x = -2; x < W; ) {
-    const w = 6 + Math.floor(rng() * 9);
-    const h = 6 + Math.floor(rng() * 13);
-    const top = HORIZON - h;
-    rect(x, top, w, h + 4, p.near);
-    for (let wy = top + 2; wy < HORIZON; wy += 3)
-      for (let wx = x + 1; wx < x + w - 1; wx += 2) px(wx, wy, rng() < (p.stars ? 0.55 : 0.25) ? p.win : p.winOff);
-    x += w + (rng() > 0.6 ? 1 : 0);
+  if (p.stars) {
+    for (let i = 0; i < 14; i++) px(149 + Math.floor(rng() * 30), 11 + Math.floor(rng() * 30), rng() > 0.7 ? "#ffe9a8" : "#dfe6ff");
+    for (let y = -4; y <= 4; y++) for (let x = -4; x <= 4; x++) if (Math.hypot(x, y) <= 4 && Math.hypot(x - 2, y + 1) > 3.2) px(172 + x, 18 + y, "#f4f1de");
+  } else {
+    const cloud: [number, number, number, number][] = [[0, 0, 6, 2], [5, -2, 5, 3], [10, 0, 5, 2]];
+    for (let y = 14; y < 26; y++)
+      for (let x = 150; x < 180; x++)
+        if (cloud.some(([ox, oy, rx, ry]) => ((x - 156 - ox) / rx) ** 2 + ((y - 20 - oy) / ry) ** 2 <= 1)) px(x, y, y >= 21 ? p.cloudShade : p.cloud);
   }
+  rect(163, 10, 2, 38, p.trim);
+  rect(148, 28, 32, 2, p.trim);
+  rect(143, 50, 42, 3, p.trim);
+  for (const cx of [140, 182]) {
+    rect(cx, 5, 6, 50, p.curtain);
+    rect(cx + 2, 5, 1, 50, p.curtainFold);
+    rect(cx + 4, 5, 1, 50, p.curtainFold);
+  }
+  rect(138, 4, 52, 2, p.shelf);
 
-  // Tree line in front of the city.
-  for (let x = 0; x < W; x++) {
-    const top = Math.round(74 - (2.5 + 2.2 * Math.sin(x * 0.27) + 1.6 * Math.sin(x * 0.09 + 1.3) + rng() * 1.4));
-    for (let y = top; y < DESK; y++) px(x, y, p.tree[1]);
-    px(x, top, p.tree[2]);
-    if (rng() > 0.5) px(x, top + 1, p.tree[2]);
-    for (let k = 0; k < 2; k++) px(x, top + 2 + Math.floor(rng() * (DESK - top - 2)), p.tree[0]);
-  }
+  // Pendant lamp.
+  rect(128, 0, 1, 11, "#2b2f38");
+  for (let y = 0; y < 6; y++) rect(124 - y, 11 + y, 9 + y * 2, 1, p.lampShade);
+  rect(126, 17, 5, 2, p.bulb);
+
+  // Framed poster with playful shapes.
+  rect(86, 10, 20, 26, "#2b2f38");
+  rect(87, 11, 18, 24, "#f6efe2");
+  for (let y = -4; y <= 4; y++) for (let x = -4; x <= 4; x++) if (x * x + y * y <= 16) px(93 + x, 18 + y, "#f2b84b");
+  rect(96, 22, 7, 7, "#e85d75");
+  rect(89, 30, 14, 2, "#1f3fd1");
+
+  // Wall shelf with books and a small plant.
+  rect(84, 46, 40, 2, p.shelf);
+  const books = ["#e85d75", "#1f3fd1", "#f2b84b", "#3b8f5a", "#6a2fd0", "#e85d75", "#1f3fd1"];
+  books.forEach((c, i) => rect(86 + i * 2, 38 + (i % 3), 2, 8 - (i % 3), c));
+  rect(103, 39, 1, 7, "#f2b84b");
+  rect(104, 40, 6, 6, "#eef1f6");
+  rect(114, 42, 6, 4, "#d9824b");
+  for (const [dx, h] of [[0, 4], [2, 6], [4, 5]] as const) rect(115 + dx, 42 - h, 1, h, p.tree[2]);
 
   // Desk.
   rect(0, DESK, W, H - DESK, p.desk);
