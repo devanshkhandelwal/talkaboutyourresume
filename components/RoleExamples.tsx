@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 type Example = {
   id: string;
   label: string;
-  title: string;
+  role: string;
+  org: string;
   claim: string;
   other: string;
   question: string;
@@ -17,7 +18,8 @@ const EXAMPLES: Example[] = [
   {
     id: "engineering",
     label: "Engineering",
-    title: "Software Engineering Intern · Fintech startup",
+    role: "Software Engineering Intern",
+    org: "Fintech startup",
     claim: "Cut checkout page load time by 40%",
     other: "Built a payments dashboard in React",
     question: "What was it before, and what did you change first?",
@@ -27,7 +29,8 @@ const EXAMPLES: Example[] = [
   {
     id: "sales",
     label: "Sales",
-    title: "Sales Associate · Outdoor gear store",
+    role: "Sales Associate",
+    org: "Outdoor gear store",
     claim: "Top seller three months in a row",
     other: "Trained four new hires on the floor",
     question: "What did you do differently from everyone else?",
@@ -37,7 +40,8 @@ const EXAMPLES: Example[] = [
   {
     id: "marketing",
     label: "Marketing",
-    title: "Marketing Intern · Local coffee chain",
+    role: "Marketing Intern",
+    org: "Local coffee chain",
     claim: "Grew Instagram engagement by 40%",
     other: "Planned a store launch event for 200 guests",
     question: "40% compared to what, and what did you actually change?",
@@ -47,7 +51,8 @@ const EXAMPLES: Example[] = [
   {
     id: "teaching",
     label: "Teaching",
-    title: "Student Teacher · 7th grade math",
+    role: "Student Teacher",
+    org: "7th grade math",
     claim: "Raised unit test average by 12 points",
     other: "Ran an after-school tutoring group",
     question: "How do you know your change caused that?",
@@ -56,168 +61,74 @@ const EXAMPLES: Example[] = [
   },
 ];
 
-export function RoleExamples({ part }: { part: "card" | "compare" }) {
-  return part === "card" ? <ExampleCard /> : <Compare />;
-}
-
-// Both parts share one rotating selection through a tiny module-level store.
-// Rotation stops for good once someone picks a role, and holds while they are
-// hovering, focused on, or reading either part, so text never changes under them.
+// The hero and the answers below share one chosen example. It only changes
+// when someone picks a role: no auto-rotation, so text never moves under a reader.
 let current = 0;
-let paused = false;
-let holds = 0;
 const listeners = new Set<() => void>();
-function hold(on: boolean) {
-  holds = Math.max(0, holds + (on ? 1 : -1));
-}
-const holdProps = {
-  onMouseEnter: () => hold(true),
-  onMouseLeave: () => hold(false),
-  onFocus: () => hold(true),
-  onBlur: () => hold(false),
-};
-
-// Every example sits in the same grid cell, so the box is always as tall as the
-// tallest one (no layout jump) and switching is a cross-fade.
-const stack: React.CSSProperties = { display: "grid" };
-function layer(visible: boolean): React.CSSProperties {
-  return {
-    gridArea: "1 / 1",
-    opacity: visible ? 1 : 0,
-    visibility: visible ? "visible" : "hidden",
-    transition: visible ? "opacity 240ms ease-out" : "opacity 240ms ease-out, visibility 0s linear 240ms",
+function subscribe(l: () => void) {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
   };
 }
-function set(i: number, pause: boolean) {
+function choose(i: number) {
   current = i;
-  if (pause) paused = true;
   listeners.forEach((l) => l());
 }
-function useExample(): [number, (i: number) => void] {
-  const [, force] = useState(0);
-  useEffect(() => {
-    const l = () => force((n) => n + 1);
-    listeners.add(l);
-    return () => {
-      listeners.delete(l);
-    };
-  }, []);
-  return [current, (i) => set(i, true)];
+function useExample() {
+  return useSyncExternalStore(subscribe, () => current, () => 0);
 }
 
-function ExampleCard() {
-  const [idx, choose] = useExample();
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (!paused && holds === 0) set((current + 1) % EXAMPLES.length, false);
-    }, 5000);
-    return () => clearInterval(t);
-  }, []);
-  const bars = [6, 12, 20, 10, 24, 28, 16, 8, 18, 26, 28, 22, 12, 16, 26, 28, 20, 14, 8, 18, 24, 16, 10, 6, 14, 22, 26, 18, 10, 6];
-
+/** The hero's signature element: a resume line under question, marked up like an interviewer would. */
+export function ResumeExample() {
+  const idx = useExample();
+  const ex = EXAMPLES[idx];
   return (
-    <section aria-label="Example of a practice session" style={{ flex: "1 1 440px", minWidth: 0 }} {...holdProps}>
-      <div role="group" aria-label="Pick an example role" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+    <div>
+      <div className="role-tabs" role="group" aria-label="Example role">
+        <span className="role-tabs-label">Example:</span>
         {EXAMPLES.map((e, i) => (
-          <button
-            key={e.id}
-            type="button"
-            aria-pressed={i === idx}
-            onClick={() => choose(i)}
-            style={{
-              minHeight: 40, padding: "0 16px", borderRadius: 999, fontSize: 14, fontWeight: 700, cursor: "pointer",
-              background: i === idx ? "var(--primary-bg)" : "var(--card)",
-              color: i === idx ? "var(--primary-ink)" : "var(--ink-2)",
-              border: `1px solid ${i === idx ? "var(--primary-bg)" : "var(--line-2)"}`,
-            }}
-          >
+          <button key={e.id} type="button" aria-pressed={i === idx} onClick={() => choose(i)}>
             {e.label}
           </button>
         ))}
       </div>
-      <div className="example-panel" style={{ borderRadius: 28, background: "var(--accent-panel)" }}>
-        <div style={stack}>
-          {EXAMPLES.map((ex, i) => (
-            <div key={ex.id} style={layer(i === idx)} aria-hidden={i !== idx || undefined}>
-              <div style={{ padding: 20, borderRadius: 18, background: "var(--card)", boxShadow: "0 12px 32px -20px rgba(var(--shadow-rgb), 0.35)" }}>
-                <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ink-3)" }}>Your resume</p>
-                <p style={{ margin: "0 0 10px", fontWeight: 700 }}>{ex.title}</p>
-                <p style={{ margin: 0, padding: "8px 12px", borderRadius: 10, background: "var(--warm-soft)", color: "var(--warm-ink)", fontWeight: 500 }}>{ex.claim}</p>
-                <p style={{ margin: "8px 0 0", padding: "0 12px", color: "var(--ink-3)" }}>{ex.other}</p>
-              </div>
-              <div style={{ margin: "20px 0 0 40px", padding: "20px 22px", borderRadius: "18px 18px 18px 4px", background: "var(--accent)", color: "#fff" }}>
-                <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Interviewer</p>
-                <p style={{ margin: 0, fontFamily: "var(--display)", fontSize: "1.375rem", lineHeight: 1.3, fontWeight: 500 }}>&ldquo;{ex.question}&rdquo;</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderRadius: 999, background: "var(--card)" }}>
-          <span style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: "50%", background: "var(--primary-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" />
-              <path d="M19 11a7 7 0 0 1-14 0" />
-              <path d="M12 18v3" />
-            </svg>
-          </span>
-          <div aria-hidden style={{ flex: "1 1 auto", display: "flex", alignItems: "center", gap: 3, height: 28, overflow: "hidden" }}>
-            {bars.map((h, i) => (
-              <span key={i} style={{ display: "block", flex: "0 0 4px", width: 4, height: h, borderRadius: 999, background: "var(--ink)" }} />
-            ))}
-          </div>
-          <span style={{ flex: "0 0 auto", fontSize: 14, fontWeight: 700 }}>Could you answer?</span>
-        </div>
-      </div>
-    </section>
+      {/* Keyed by example so the highlight and note replay when a role is picked. */}
+      <figure key={ex.id} className="paper" aria-label={`Example resume for a ${ex.role}, with the interviewer's follow-up question`}>
+        <p className="paper-role">{ex.role}</p>
+        <p className="paper-org">{ex.org}</p>
+        <ul className="paper-list">
+          <li>
+            <span className="mark">{ex.claim}</span>
+            <p className="pen-note">
+              <span className="pen-note-who">The interviewer asks</span>
+              &ldquo;{ex.question}&rdquo;
+            </p>
+          </li>
+          <li>{ex.other}</li>
+        </ul>
+      </figure>
+    </div>
   );
 }
 
-function Compare() {
-  const [idx] = useExample();
+/** The same follow-up answered twice, set as a short transcript. */
+export function AnswerExample() {
+  const idx = useExample();
   const ex = EXAMPLES[idx];
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  // Hold the rotation while the answers are on screen, so they never change mid-read.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    let visible = false;
-    const io = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting !== visible) {
-        visible = entry.isIntersecting;
-        hold(visible);
-      }
-    }, { threshold: 0.25 });
-    io.observe(el);
-    return () => {
-      io.disconnect();
-      if (visible) hold(false);
-    };
-  }, []);
-
   return (
-    <div ref={ref} {...holdProps}>
-      <p className="muted" style={{ margin: "0 0 28px" }}>
-        Example answers to the {ex.label.toLowerCase()} question above.
+    <>
+      <p className="home-sub">
+        The {ex.label.toLowerCase()} example from above. Both answers describe the same work; the second one gives the starting point, what they did, and the result.
       </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-        <div className="card" style={{ padding: 28 }}>
-          <span className="chip chip-vague">Before practice</span>
-          <div style={{ ...stack, marginTop: 12 }}>
-            {EXAMPLES.map((e, i) => (
-              <p key={e.id} aria-hidden={i !== idx || undefined} style={{ ...layer(i === idx), margin: 0, fontSize: "1.2rem", lineHeight: 1.45, color: "var(--ink-3)" }}>&ldquo;{e.before}&rdquo;</p>
-            ))}
-          </div>
-        </div>
-        <div className="card" style={{ padding: 28, border: "2px solid var(--accent)" }}>
-          <span className="chip chip-strong">After practice</span>
-          <div style={{ ...stack, marginTop: 12 }}>
-            {EXAMPLES.map((e, i) => (
-              <p key={e.id} aria-hidden={i !== idx || undefined} style={{ ...layer(i === idx), margin: 0, fontSize: "1.2rem", lineHeight: 1.45 }}>&ldquo;{e.after}&rdquo;</p>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+      <dl className="transcript">
+        <dt>Interviewer</dt>
+        <dd>&ldquo;{ex.question}&rdquo;</dd>
+        <dt>Before practice</dt>
+        <dd className="before">&ldquo;{ex.before}&rdquo;</dd>
+        <dt>After practice</dt>
+        <dd>&ldquo;{ex.after}&rdquo;</dd>
+      </dl>
+    </>
   );
 }

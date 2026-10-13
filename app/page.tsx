@@ -1,11 +1,12 @@
 import { SiteFooter, SiteHeader } from "@/components/Chrome";
-import { RoleExamples } from "@/components/RoleExamples";
+import { AnswerExample, ResumeExample } from "@/components/RoleExamples";
 import { UploadButton } from "@/components/UploadButton";
-import { BETA, FREE_MINUTES, PRO_MINUTES, PRO_PRICE } from "@/lib/config";
+import { FREE_MINUTES, PRO_MINUTES, PRO_PRICE } from "@/lib/config";
+import "./home.css";
 
 export default function Home() {
   return (
-    <>
+    <div className="home">
       <SiteHeader
         right={
           <nav className="nav" aria-label="Main">
@@ -14,76 +15,67 @@ export default function Home() {
         }
       />
 
-      <main id="top" className="wrap page-main" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 56 }}>
-        <section style={{ flex: "1 1 440px", minWidth: 0 }}>
-          <h1 className="display h1">
-            Can you <span style={{ color: "var(--accent)" }}>talk</span> about your resume?
-          </h1>
-          <p className="muted" style={{ margin: "24px 0 36px", fontSize: "1.25rem", maxWidth: 500 }}>
-            The first question is easy. The follow-up is where interviews are won or lost. Practice the follow-ups on your own resume, out loud, for any role.
-          </p>
+      <main id="top">
+        <section className="wrap home-hero" aria-labelledby="hero-title">
+          <div>
+            <h1 id="hero-title" className="home-h1">
+              Every line on your resume has a <span className="nowrap">follow-up</span> question.
+            </h1>
+            <p className="home-lede">
+              Upload your resume and an AI interviewer asks about what you wrote, out loud. It keeps digging until each answer is specific, then shows you which ones held up.
+            </p>
+            <UploadButton />
+          </div>
+          <ResumeExample />
+        </section>
+
+        <section className="wrap home-section" aria-labelledby="answers-title">
+          <h2 id="answers-title" className="home-h2">
+            Same experience, two answers
+          </h2>
+          <AnswerExample />
+        </section>
+
+        <section id="pricing" className="wrap home-section" aria-labelledby="pricing-title">
+          <h2 id="pricing-title" className="home-h2" style={{ marginBottom: 32 }}>
+            Pricing
+          </h2>
+          <div className="pricing">
+            <div className="plan">
+              <h3 className="plan-name">Free</h3>
+              <p className="plan-price">$0</p>
+              <ul>
+                <li>One practice interview with any interviewer</li>
+                <li>Up to {FREE_MINUTES} minutes</li>
+                <li>Feedback on every answer, plus the transcript</li>
+                <li>A retry of your weakest answer</li>
+              </ul>
+            </div>
+            <div className="plan">
+              <h3 className="plan-name">Pro</h3>
+              <p className="plan-price">
+                ${PRO_PRICE} <small>a month</small>
+              </p>
+              <ul>
+                <li>{PRO_MINUTES} minutes of practice a month</li>
+                <li>Questions tailored to a specific job</li>
+                <li>All six interviewers</li>
+                <li>Your progress from one session to the next</li>
+              </ul>
+              <p className="plan-soon">Coming soon</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="wrap home-section home-close" aria-labelledby="close-title">
+          <h2 id="close-title" className="home-h2" style={{ margin: 0 }}>
+            Your next interviewer will ask a <span className="nowrap">follow-up</span>. Hear it here first.
+          </h2>
           <UploadButton />
         </section>
-        <RoleExamples part="card" />
       </main>
 
-      <section className="wrap" aria-labelledby="change-title" style={{ paddingBottom: 96 }}>
-        <h2 id="change-title" className="display h2" style={{ marginBottom: 8 }}>
-          Same experience. Different answer.
-        </h2>
-        <RoleExamples part="compare" />
-      </section>
-
-      <section id="pricing" className="narrow" aria-labelledby="pricing-title" style={{ paddingBottom: 72 }}>
-        <h2 id="pricing-title" className="display h2" style={{ textAlign: "center", marginBottom: 24 }}>
-          Pricing
-        </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-          <div className="card" style={{ padding: 28, display: "flex", flexDirection: "column" }}>
-            <h3 style={{ margin: 0, fontSize: "1.125rem" }}>Free</h3>
-            <p style={{ margin: "8px 0 20px" }}>
-              <span className="display" style={{ fontSize: "2.5rem" }}>$0</span>
-            </p>
-            <ul style={{ margin: "0 0 28px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10, color: "var(--ink-2)" }}>
-              <li>One practice interview with any interviewer</li>
-              <li>Up to {FREE_MINUTES} minutes</li>
-              <li>Full feedback and transcript</li>
-              <li>Retry your weakest answer</li>
-            </ul>
-            <a href="#top" className="btn btn-light btn-sm" style={{ marginTop: "auto" }}>
-              Start free
-            </a>
-          </div>
-          <div style={{ padding: 28, borderRadius: 20, background: "var(--inv-bg)", color: "var(--inv-ink)", border: "1px solid var(--inv-edge)", display: "flex", flexDirection: "column" }}>
-            <h3 style={{ margin: 0, fontSize: "1.125rem" }}>Pro</h3>
-            <p style={{ margin: "8px 0 4px" }}>
-              <span className="display" style={{ fontSize: "2.5rem" }}>${PRO_PRICE}</span>
-              <span style={{ color: "var(--inv-ink-3)" }}> / month</span>
-            </p>
-            <p style={{ margin: "0 0 20px", fontSize: 14, color: "var(--inv-ink-3)" }}>Cancel anytime.</p>
-            <ul style={{ margin: "0 0 28px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10, color: "var(--inv-ink-2)" }}>
-              <li>{PRO_MINUTES} minutes of practice</li>
-              <li>Questions tailored to a specific job</li>
-              <li>All 6 interviewers, every session</li>
-              <li>See your progress session to session</li>
-            </ul>
-            <button className="btn btn-accent btn-sm" style={{ marginTop: "auto" }} disabled={BETA}>
-              {BETA ? "Coming soon" : "Get Pro"}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="wrap" aria-labelledby="final-title" style={{ paddingBottom: 96 }}>
-        <div style={{ padding: "56px 24px", borderRadius: 28, background: "var(--inv-bg)", color: "var(--inv-ink)", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
-          <h2 id="final-title" className="display" style={{ maxWidth: 640, fontSize: "clamp(1.8rem, 4vw, 2.5rem)", lineHeight: 1.1 }}>
-            Your next interviewer will ask a follow-up. Hear it here first.
-          </h2>
-          <UploadButton variant="light" />
-        </div>
-      </section>
-
       <SiteFooter />
-    </>
+    </div>
   );
 }
