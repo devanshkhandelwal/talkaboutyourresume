@@ -40,6 +40,8 @@ export class InterviewAgent {
   private recDest: MediaStreamAudioDestinationNode | null = null;
   private recorder: MediaRecorder | null = null;
   private recChunks: Blob[] = [];
+  private analyser: AnalyserNode | null = null;
+  private levelBuf: Float32Array<ArrayBuffer> | null = null;
 
   constructor(private events: AgentEvents) {}
 
@@ -55,6 +57,10 @@ export class InterviewAgent {
     const source = this.ctx.createMediaStreamSource(this.mic);
     this.node = new AudioWorkletNode(this.ctx, "mic-processor");
     source.connect(this.node);
+    // Read-only tap for the on-screen mic meter.
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 512;
+    source.connect(this.analyser);
     // The worklet must be pulled by the graph; route it to a silent gain.
     const sink = this.ctx.createGain();
     sink.gain.value = 0;
@@ -204,6 +210,17 @@ export class InterviewAgent {
     }
     this.playing.clear();
     this.playhead = this.ctx?.currentTime ?? 0;
+  }
+
+  /** Current mic loudness, 0 to 1, for the on-screen meter. */
+  inputLevel(): number {
+    if (!this.analyser || this.muted || this.ended) return 0;
+    this.levelBuf ??= new Float32Array(this.analyser.fftSize);
+    this.analyser.getFloatTimeDomainData(this.levelBuf);
+    let sum = 0;
+    for (const v of this.levelBuf) sum += v * v;
+    // Speech RMS is usually 0.02 to 0.2; scale so normal talking fills most of the meter.
+    return Math.min(1, Math.sqrt(sum / this.levelBuf.length) * 6);
   }
 
   setMuted(muted: boolean) {

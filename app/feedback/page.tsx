@@ -12,6 +12,15 @@ import type { FeedbackReport, InterviewSession } from "@/lib/types";
 const CHIP = { strong: "chip-strong", needs_detail: "chip-detail", vague: "chip-vague" } as const;
 const LABEL = { strong: "Strong", needs_detail: "Needs detail", vague: "Vague" } as const;
 
+function RetryIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 12a9 9 0 1 1-3-6.7" />
+      <path d="M21 4v5h-5" />
+    </svg>
+  );
+}
+
 function duration(s: InterviewSession) {
   const sec = Math.max(0, Math.round(((s.endedAt ?? Date.now()) - s.startedAt) / 1000));
   return `${Math.floor(sec / 60)} min ${sec % 60} sec`;
@@ -122,6 +131,7 @@ export default function FeedbackPage() {
   const tooShort = session.transcript.filter((l) => l.role === "user").length < 2;
   const total = report?.answers.length ?? 0;
   const strong = report?.answers.filter((a) => a.verdict === "strong").length ?? 0;
+  const weakest = report && report.weakestIndex !== null ? report.answers[report.weakestIndex] ?? null : null;
 
   return (
     <>
@@ -206,6 +216,12 @@ export default function FeedbackPage() {
                 <p style={{ margin: "12px 0 0", fontWeight: 700 }}>
                   {strong === total ? "Every answer landed. Try a tougher interviewer next." : total - strong === 1 ? "One more and you're interview-ready." : `${total - strong} answers to tighten up.`}
                 </p>
+                {weakest && (
+                  <button className="btn btn-dark btn-sm" style={{ marginTop: 16 }} onClick={() => retry(weakest.title, weakest.tip)}>
+                    <RetryIcon />
+                    Retry your weakest answer · 2 min
+                  </button>
+                )}
               </section>
             )}
 
@@ -221,11 +237,8 @@ export default function FeedbackPage() {
                       </div>
                       <p className="muted" style={{ margin: "6px 0 0" }}>{a.tip}</p>
                       {i === report.weakestIndex && (
-                        <button className="btn btn-dark btn-sm" style={{ marginTop: 12 }} onClick={() => retry(a.title, a.tip)}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <path d="M21 12a9 9 0 1 1-3-6.7" />
-                            <path d="M21 4v5h-5" />
-                          </svg>
+                        <button className="btn btn-light btn-sm" style={{ marginTop: 12 }} onClick={() => retry(a.title, a.tip)}>
+                          <RetryIcon />
                           Retry this answer · 2 min
                         </button>
                       )}

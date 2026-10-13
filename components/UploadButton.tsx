@@ -47,7 +47,7 @@ export function UploadButton({
     <div>
       <label
         htmlFor={id}
-        className={`btn ${variant === "dark" ? "btn-dark" : "btn-light"}`}
+        className={`btn upload-btn ${variant === "dark" ? "btn-dark" : "btn-light upload-btn-on-dark"}`}
         style={{ minHeight: 60, fontSize: 18, maxWidth: 360, width: "100%", cursor: busy ? "progress" : "pointer" }}
         aria-busy={busy}
       >

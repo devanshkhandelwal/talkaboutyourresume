@@ -73,6 +73,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .btn-accent { background: var(--accent); color: #fff; }
 .btn-accent:hover { color: #fff; }
 .btn-sm { min-height: 44px; padding: 0 16px; font-size: 15px; border-radius: 12px; }
+/* The upload button is a label for a visually hidden file input; show the input's keyboard focus on the label. */
+.upload-btn:has(+ input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 3px; }
+.upload-btn-on-dark:has(+ input:focus-visible) { outline-color: #fff; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; }
 .chip { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
