@@ -47,7 +47,7 @@ export function FillerSummary({ report, transcript }: { report: FillerReport; tr
             </p>
             <ul aria-label="By word" style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 8 }}>
               {byWord.map((w) => (
-                <li key={w.label} className="chip chip-vague">
+                <li key={w.label} className="chip chip-neutral">
                   &ldquo;{w.label}&rdquo; × {w.count}
                 </li>
               ))}

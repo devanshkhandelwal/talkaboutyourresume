@@ -14,11 +14,12 @@ import { recording } from "@/lib/voice/recording";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { CostRows } from "@/components/LiveCost";
 import { FillerSummary, Highlighted } from "@/components/FillerWords";
+import { ResumeHeatmap } from "@/components/ResumeHeatmap";
 import { analyzeFillers } from "@/lib/fillers";
 import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
-import type { ClaudeUsage, FeedbackReport, InterviewSession } from "@/lib/types";
+import type { ClaudeUsage, FeedbackReport, InterviewSession, ResumeTopic } from "@/lib/types";
 
-// Green for "strong" everywhere on this page, matching the progress bar.
+// Verdict chips: green, yellow, red, matching the resume heatmap.
 const CHIP = { strong: "chip-good", needs_detail: "chip-detail", vague: "chip-vague" } as const;
 const LABEL = { strong: "Strong", needs_detail: "Needs detail", vague: "Vague" } as const;
 
@@ -95,6 +96,7 @@ export default function FeedbackPage() {
   const [saved, setSaved] = useState<"idle" | "saving" | "done">("idle");
   const [practiced, setPracticed] = useState<string[]>([]);
   const [cost, setCost] = useState<CostLedger | null>(null);
+  const [resume, setResume] = useState<{ text: string; topics: ResumeTopic[] } | null>(null);
 
   useEffect(() => {
     const s = store.getSession();
@@ -104,6 +106,10 @@ export default function FeedbackPage() {
     setPracticed(s && answered >= 2 ? recordPractice(new Date(s.endedAt ?? Date.now())) : getPracticedDays());
     const r = store.getReport();
     setCost(costLedger.get());
+    // The heatmap needs the resume text and claim ids; resumes read before it shipped have neither.
+    const text = store.getResumeText();
+    const topics = store.getProfile()?.topics ?? [];
+    if (text && topics.some((t) => t.id)) setResume({ text, topics });
     setLoaded(true);
     if (r) {
       setReport(r);
@@ -307,6 +313,8 @@ export default function FeedbackPage() {
                 </ul>
               </>
             )}
+
+            {resume && total > 0 && <ResumeHeatmap resumeText={resume.text} topics={resume.topics} answers={report.answers} />}
           </>
         )}
 
