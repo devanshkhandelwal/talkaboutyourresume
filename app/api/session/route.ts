@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return NextResponse.json({ error: "Voice is not configured." }, { status: 500 });
 
-  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; retryTopic?: string };
+  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; questions?: unknown; retryTopic?: string };
   try {
     body = await req.json();
   } catch {
@@ -61,6 +61,10 @@ export async function POST(req: NextRequest) {
     interviewer,
     profile: body.profile,
     focusNote: (body.focusNote ?? "").slice(0, 1500),
+    // Questions the candidate wants to practice: at most 5 strings of up to 200 characters.
+    questions: Array.isArray(body.questions)
+      ? body.questions.filter((q): q is string => typeof q === "string").map((q) => q.replace(/\s+/g, " ").trim().slice(0, 200)).filter(Boolean).slice(0, 5)
+      : [],
     minutes: sessionMinutes,
     retryTopic,
   });

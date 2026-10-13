@@ -21,6 +21,7 @@ export default function InterviewPage() {
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
   const [interviewerId, setInterviewerId] = useState("manager");
   const [focusNote, setFocusNote] = useState("");
+  const [questions, setQuestions] = useState<string[]>([]);
   const [retryTopic, setRetryTopic] = useState<string | undefined>();
   const [loaded, setLoaded] = useState(false);
 
@@ -54,6 +55,7 @@ export default function InterviewPage() {
     if (s) {
       setInterviewerId(s.interviewerId);
       setFocusNote(s.focusNote);
+      setQuestions(s.questions ?? []);
     }
     const retry = new URLSearchParams(window.location.search).get("retry");
     if (retry) setRetryTopic(retry);
@@ -176,7 +178,7 @@ export default function InterviewPage() {
       const res = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, interviewerId, focusNote, retryTopic }),
+        body: JSON.stringify({ profile, interviewerId, focusNote, questions, retryTopic }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't start the interview.");

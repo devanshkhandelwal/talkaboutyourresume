@@ -18,6 +18,16 @@ const QUICK_ADDS = [
   { label: "+ Paste job description", text: "Job description:\n" },
 ];
 
+// Common questions people want to rehearse; one tap adds them to the list.
+const SUGGESTED_QUESTIONS = [
+  "Tell me about yourself.",
+  "Why do you want to work here?",
+  "Tell me about a time you failed.",
+  "What's your biggest weakness?",
+  "Tell me about a disagreement with a teammate.",
+];
+const MAX_QUESTIONS = 5;
+
 export default function SetupPage() {
   const router = useRouter();
   const replaceId = useId();
@@ -25,6 +35,9 @@ export default function SetupPage() {
   const [loaded, setLoaded] = useState(false);
   const [picked, setPicked] = useState("manager");
   const [note, setNote] = useState("");
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [draft, setDraft] = useState("");
+  const [questionError, setQuestionError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   // Set when Start is clicked while the resume is still being read.
   const [waiting, setWaiting] = useState(false);
@@ -36,6 +49,7 @@ export default function SetupPage() {
     if (s) {
       setPicked(s.interviewerId);
       setNote(s.focusNote);
+      setQuestions(s.questions ?? []);
     }
     setLoaded(true);
   }, []);
@@ -68,13 +82,34 @@ export default function SetupPage() {
     pendingResume.start(file, uploadResume);
   }
 
+  function addQuestion(text: string) {
+    const q = text.replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!q) return;
+    if (questions.length >= MAX_QUESTIONS) {
+      setQuestionError(`You can add up to ${MAX_QUESTIONS} questions. Remove one to add another.`);
+      return;
+    }
+    if (questions.some((x) => x.toLowerCase() === q.toLowerCase())) {
+      setQuestionError("That question is already on your list.");
+      return;
+    }
+    setQuestions((qs) => [...qs, q]);
+    setDraft("");
+    setQuestionError(null);
+  }
+
+  function removeQuestion(i: number) {
+    setQuestions((qs) => qs.filter((_, j) => j !== i));
+    setQuestionError(null);
+  }
+
   function onStart() {
     if (pending.status === "reading") setWaiting(true);
     else start();
   }
 
   function start() {
-    store.setSetup({ interviewerId: picked, focusNote: note });
+    store.setSetup({ interviewerId: picked, focusNote: note, questions });
     store.setReport(null);
     router.push("/interview");
   }
@@ -193,6 +228,83 @@ export default function SetupPage() {
           </div>
         </section>
 
+        <section aria-labelledby="questions-title" className="section-rule" style={{ maxWidth: 760 }}>
+          <h2 id="questions-title" className="display" style={{ fontSize: "2rem", lineHeight: 1.1 }}>
+            Questions you want to practice
+          </h2>
+          <p className="muted" style={{ margin: "6px 0 20px" }}>
+            Your interviewer will ask each one in their own words, along with questions about your resume. Up to {MAX_QUESTIONS}. Optional.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addQuestion(draft);
+            }}
+            style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
+          >
+            <label htmlFor="new-question" className="visually-hidden">
+              Question to practice
+            </label>
+            <input
+              id="new-question"
+              className="input"
+              value={draft}
+              maxLength={200}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setQuestionError(null);
+              }}
+              placeholder="Tell me about a time you disagreed with your manager."
+              style={{ flex: "1 1 320px" }}
+            />
+            <button type="submit" className="btn btn-dark btn-sm" disabled={!draft.trim()}>
+              Add question
+            </button>
+          </form>
+          {questionError && (
+            <p className="error" role="alert" style={{ marginTop: 10 }}>
+              {questionError}
+            </p>
+          )}
+          {questions.length > 0 && (
+            <ul aria-label="Your questions" style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+              {questions.map((q, i) => (
+                <li key={q} className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 10px 10px 16px", borderRadius: 14 }}>
+                  <span style={{ flex: "1 1 auto", minWidth: 0, overflowWrap: "anywhere" }}>{q}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeQuestion(i)}
+                    aria-label={`Remove question: ${q}`}
+                    style={{ flex: "0 0 auto", width: 36, height: 36, borderRadius: 10, border: "1px solid var(--line-2)", background: "var(--bg)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="subtle" aria-live="polite" style={{ margin: "10px 0 0" }}>
+            {questions.length} of {MAX_QUESTIONS} added
+          </p>
+          {questions.length < MAX_QUESTIONS && (
+            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span className="subtle">Suggestions:</span>
+              {SUGGESTED_QUESTIONS.filter((sq) => !questions.includes(sq)).map((sq) => (
+                <button
+                  key={sq}
+                  type="button"
+                  onClick={() => addQuestion(sq)}
+                  style={{ minHeight: 36, padding: "0 14px", borderRadius: 999, border: "1px solid var(--line-2)", background: "var(--card)", color: "var(--ink)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                >
+                  + {sq}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="section-rule" style={{ maxWidth: 760 }}>
           <label htmlFor="details" className="display" style={{ display: "block", fontSize: "2rem", lineHeight: 1.1 }}>
             Anything you want to tighten up?
@@ -236,6 +348,7 @@ export default function SetupPage() {
             </p>
             <p className="subtle" style={{ margin: "6px 0 0" }}>
               Starts now · up to {FREE_MINUTES} minutes · use headphones if you can
+              {questions.length > 0 ? ` · includes your ${questions.length} question${questions.length === 1 ? "" : "s"}` : ""}
               {chosen.pro && BETA ? " · Pro interviewers are free during beta" : ""}
             </p>
           </div>

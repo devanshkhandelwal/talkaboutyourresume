@@ -2,6 +2,9 @@
 
 import type { FeedbackReport, InterviewSession, ResumeProfile } from "./types";
 
+/** What the person chose on the setup screen. `questions` are ones they want to be asked. */
+export type SetupChoice = { interviewerId: string; focusNote: string; questions?: string[] };
+
 // Beta: everything lives in the browser's sessionStorage, so a page refresh
 // keeps progress but nothing is stored on a server.
 const KEYS = {
@@ -32,8 +35,8 @@ export const store = {
   getProfile: () => read<ResumeProfile>(KEYS.profile),
   setProfile: (p: ResumeProfile) => write(KEYS.profile, p),
   clearProfile: () => write(KEYS.profile, null),
-  getSetup: () => read<{ interviewerId: string; focusNote: string }>(KEYS.setup),
-  setSetup: (s: { interviewerId: string; focusNote: string }) => write(KEYS.setup, s),
+  getSetup: () => read<SetupChoice>(KEYS.setup),
+  setSetup: (s: SetupChoice) => write(KEYS.setup, s),
   getSession: () => read<InterviewSession>(KEYS.session),
   setSession: (s: InterviewSession) => write(KEYS.session, s),
   getReport: () => read<FeedbackReport>(KEYS.report),
