@@ -4,10 +4,20 @@ import { useEffect, useRef } from "react";
 import { dayKey } from "@/lib/practice";
 
 // A 1-bit wall calendar for the current month, like the one on the home page:
-// practiced days are crossed out, today has a box around it. Inverts in dark mode.
+// weekday letters, practiced days crossed out, today boxed. Inverts in dark mode.
 const PITCH = 7;
 const W = 3 + 7 * PITCH + 2;
-const TOP = 13;
+const TOP = 20;
+
+// 3 x 5 pixel letters for the weekday row, Sunday first, centered over each day.
+const GLYPHS: Record<string, string[]> = {
+  S: ["###", "#..", "###", "..#", "###"],
+  M: ["#.#", "###", "###", "#.#", "#.#"],
+  T: ["###", ".#.", ".#.", ".#.", ".#."],
+  W: ["#.#", "#.#", "###", "###", "#.#"],
+  F: ["###", "#..", "##.", "#..", "#.."],
+};
+const WEEK = "SMTWTFS";
 
 export function PixelCalendar({ practiced, today = new Date() }: { practiced: string[]; today?: Date }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
@@ -40,6 +50,11 @@ export function PixelCalendar({ practiced, today = new Date() }: { practiced: st
       rect(0, 0, W, 8, I);
       rect(11, 3, 3, 2, P);
       rect(W - 14, 3, 3, 2, P);
+      // Weekday letters, then a rule under them.
+      [...WEEK].forEach((ch, col) =>
+        GLYPHS[ch].forEach((row, y) => [...row].forEach((c, x) => c === "#" && rect(4 + col * PITCH + x, 11 + y, 1, 1, I))),
+      );
+      rect(2, 17, W - 4, 1, I);
       for (let d = 1; d <= days; d++) {
         const slot = first + d - 1;
         const x = 3 + (slot % 7) * PITCH;
