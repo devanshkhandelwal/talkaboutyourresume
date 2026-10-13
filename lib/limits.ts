@@ -2,9 +2,16 @@ import type { NextRequest } from "next/server";
 
 // Optional Upstash Redis over its REST API (no SDK needed).
 // Without it, limits are skipped and emails are only logged.
-// Upstash's own names, or the KV_* names Vercel's Upstash integration adds.
-const URL_ = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+// Upstash's own names, or the KV_REST_API_* names Vercel's Upstash integration
+// adds, which carry whatever prefix was picked when connecting (e.g. STORAGE_).
+function upstashEnv(part: "URL" | "TOKEN"): string | undefined {
+  const own = process.env[`UPSTASH_REDIS_REST_${part}`];
+  if (own) return own;
+  const name = `KV_REST_API_${part}`;
+  return Object.entries(process.env).find(([k, v]) => v && (k === name || k.endsWith(`_${name}`)))?.[1];
+}
+const URL_ = upstashEnv("URL");
+const TOKEN = upstashEnv("TOKEN");
 
 export const redisEnabled = Boolean(URL_ && TOKEN);
 
