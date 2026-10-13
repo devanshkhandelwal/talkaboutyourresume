@@ -1,7 +1,5 @@
 import { SiteFooter, SiteHeader } from "@/components/Chrome";
 
-export const metadata = { title: "Privacy" };
-
 export default function Privacy() {
   return (
     <>
