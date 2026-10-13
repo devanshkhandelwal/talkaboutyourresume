@@ -184,3 +184,23 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* Privacy card on the interview lobby: grows out of the "Privacy" link it belongs to. */
 .privacy-card { transform: translateX(-50%); transform-origin: 50% 100%; animation: card-in 180ms ease-out; }
 @keyframes card-in { from { opacity: 0; transform: translateX(-50%) scale(0.96); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+
+/* Interview recording player (feedback page). Progress fills in the accent so it reads in both themes. */
+.audio-player { display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 8px 24px -18px rgba(var(--shadow-rgb), 0.5); }
+.audio-play { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--primary-bg); color: var(--primary-ink); cursor: pointer; transition: transform 0.08s ease; }
+.audio-play:active { transform: scale(0.94); }
+.audio-time { flex: 0 0 auto; min-width: 2.6em; font-size: 13px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: center; }
+.audio-chip { flex: 0 0 auto; min-width: 40px; height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); color: var(--ink); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-variant-numeric: tabular-nums; }
+.audio-scrubber { flex: 1 1 auto; min-width: 60px; height: 24px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.audio-scrubber::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: linear-gradient(to right, var(--accent) var(--pct), var(--line-2) var(--pct)); }
+.audio-scrubber::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 50%; background: var(--accent); border: 2px solid var(--card); transform: scale(0.6); transition: transform 120ms ease-out; }
+.audio-scrubber:hover::-webkit-slider-thumb, .audio-scrubber:focus-visible::-webkit-slider-thumb, .audio-scrubber:active::-webkit-slider-thumb { transform: scale(1); }
+.audio-scrubber::-moz-range-track { height: 6px; border-radius: 999px; background: var(--line-2); }
+.audio-scrubber::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--accent); }
+.audio-scrubber::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--card); }
+.audio-scrubber:focus-visible { outline: none; }
+.audio-scrubber:focus-visible::-webkit-slider-runnable-track { box-shadow: 0 0 0 3px var(--accent-soft); }
+@media (max-width: 480px) {
+  .audio-player { gap: 8px; }
+  .audio-total { display: none; }
+}

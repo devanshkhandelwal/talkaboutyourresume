@@ -7,6 +7,7 @@ import { SiteHeader } from "@/components/Chrome";
 import { getInterviewer } from "@/lib/interviewers";
 import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import type { FeedbackReport, InterviewSession } from "@/lib/types";
 
 // Green for "strong" everywhere on this page, matching the progress bar.
@@ -83,7 +84,6 @@ export default function FeedbackPage() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [optIn, setOptIn] = useState(false);
   const [saved, setSaved] = useState<"idle" | "saving" | "done">("idle");
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export default function FeedbackPage() {
     const res = await fetch("/api/waitlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, source: "feedback", verifiedProfile: optIn }),
+      body: JSON.stringify({ email, source: "feedback" }),
     });
     if (res.ok) setSaved("done");
     else {
@@ -187,18 +187,13 @@ export default function FeedbackPage() {
           </p>
         </div>
 
-        {audioUrl && (
-          <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <audio controls src={audioUrl} style={{ flex: "1 1 260px", maxWidth: "100%" }} />
-              <button className="btn btn-light btn-sm" onClick={downloadAudio}>
-                Download audio
-              </button>
-            </div>
-            <p className="muted" style={{ margin: 0, fontSize: "0.875rem" }}>
-              Your recording stays in this tab and isn&apos;t saved anywhere. Download it now if you want to keep it.
+        {audioUrl && audio && (
+          <section aria-label="Your interview recording" style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+            <AudioPlayer src={audioUrl} durationMs={audio.durationMs} onDownload={downloadAudio} />
+            <p className="subtle" style={{ margin: 0 }}>
+              Your recording stays in this tab and isn&apos;t saved anywhere. Download it to keep it.
             </p>
-          </div>
+          </section>
         )}
 
         <h1 className="display" style={{ marginTop: 28, fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
@@ -334,10 +329,6 @@ export default function FeedbackPage() {
                   {saved === "saving" ? "Saving..." : "Keep me posted"}
                 </button>
               </div>
-              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 14, fontSize: 14, color: "var(--ink-2)", cursor: "pointer" }}>
-                <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} style={{ marginTop: 4 }} />
-                I&apos;d like to share a verified version of my interview with employers when that&apos;s ready.
-              </label>
             </form>
           )}
         </section>
