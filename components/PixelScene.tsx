@@ -129,18 +129,18 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean) {
 
   // A wall calendar on a nail: a solid header with two rings, then a month of
   // days, the ones already practiced crossed out.
-  const cx = 70;
-  const cy = 10;
-  rect(cx + 19, cy - 3, 3, 3, I);
-  box(cx, cy, 41, 37);
-  rect(cx, cy, 41, 7, I);
-  rect(cx + 9, cy + 2, 2, 2, P);
-  rect(cx + 30, cy + 2, 2, 2, P);
-  for (let day = 1; day <= 30; day++) {
+  const cx = 78;
+  const cy = 18;
+  rect(cx + 15, cy - 2, 2, 2, I);
+  box(cx, cy, 32, 25);
+  rect(cx, cy, 32, 5, I);
+  rect(cx + 7, cy + 2, 2, 1, P);
+  rect(cx + 23, cy + 2, 2, 1, P);
+  for (let day = 1; day <= 26; day++) {
     const slot = day + 1; // the month starts on a Tuesday
-    const x = cx + 4 + (slot % 7) * 5;
-    const y = cy + 11 + Math.floor(slot / 7) * 5;
-    if (day <= 12) {
+    const x = cx + 3 + (slot % 7) * 4;
+    const y = cy + 7 + Math.floor(slot / 7) * 4;
+    if (day <= 9) {
       px(x, y, I);
       px(x + 2, y, I);
       px(x + 1, y + 1, I);
