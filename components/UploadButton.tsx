@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { store } from "@/lib/store";
+import { checkResumeFile, pendingResume } from "@/lib/pendingResume";
 import type { ResumeProfile } from "@/lib/types";
 
 export async function uploadResume(file: File): Promise<ResumeProfile> {
@@ -26,21 +26,21 @@ export function UploadButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    const problem = checkResumeFile(file);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    // Don't wait for the read: setup is useful right away (pick an interviewer,
+    // add a note) while the resume is read in the background.
     setError(null);
     setBusy(true);
-    try {
-      const profile = await uploadResume(file);
-      store.setProfile(profile);
-      store.setReport(null);
-      router.push("/setup");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
-      setBusy(false);
-    }
+    pendingResume.start(file, uploadResume);
+    router.push("/setup");
   }
 
   return (
@@ -54,7 +54,7 @@ export function UploadButton({
         {busy ? (
           <>
             <span className="spinner" aria-hidden />
-            Reading your resume...
+            Opening...
           </>
         ) : (
           <>
@@ -69,7 +69,7 @@ export function UploadButton({
       </label>
       <input id={id} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onFile} disabled={busy} />
       <p style={{ margin: "10px 0 0", fontSize: 14, color: variant === "dark" ? "var(--ink-3)" : "var(--inv-ink-3)" }}>
-        Upload your resume (PDF or DOCX) to start. Free, no account.
+        Upload your resume (PDF or DOCX) to start. No account needed.
       </p>
       {error && (
         <p className="error" role="alert" style={{ marginTop: 12, maxWidth: 480 }}>

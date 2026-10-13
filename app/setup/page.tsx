@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SiteHeader } from "@/components/Chrome";
 import { Avatar } from "@/components/Avatar";
 import { uploadResume } from "@/components/UploadButton";
+import { IDLE, checkResumeFile, pendingResume } from "@/lib/pendingResume";
 import { INTERVIEWERS, getInterviewer } from "@/lib/interviewers";
 import { BETA, FREE_MINUTES } from "@/lib/config";
 import { store } from "@/lib/store";
@@ -24,8 +25,10 @@ export default function SetupPage() {
   const [loaded, setLoaded] = useState(false);
   const [picked, setPicked] = useState("manager");
   const [note, setNote] = useState("");
-  const [replacing, setReplacing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  // Set when Start is clicked while the resume is still being read.
+  const [waiting, setWaiting] = useState(false);
+  const pending = useSyncExternalStore(pendingResume.subscribe, pendingResume.get, () => IDLE);
 
   useEffect(() => {
     setProfile(store.getProfile());
@@ -37,21 +40,32 @@ export default function SetupPage() {
     setLoaded(true);
   }, []);
 
-  async function onReplace(e: React.ChangeEvent<HTMLInputElement>) {
+  // Pick up the profile once a background read finishes.
+  useEffect(() => {
+    if (pending.status === "idle") setProfile(store.getProfile());
+    if (pending.status === "error") setWaiting(false);
+  }, [pending.status]);
+
+  // Start clicked early: go as soon as the resume is ready.
+  useEffect(() => {
+    if (waiting && pending.status === "idle" && profile) start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting, pending.status, profile]);
+
+  function onReplace(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setReplacing(true);
-    setError(null);
-    try {
-      const p = await uploadResume(file);
-      store.setProfile(p);
-      setProfile(p);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
-    } finally {
-      setReplacing(false);
-    }
+    const problem = checkResumeFile(file);
+    setFileError(problem);
+    if (problem) return;
+    setProfile(null);
+    pendingResume.start(file, uploadResume);
+  }
+
+  function onStart() {
+    if (pending.status === "reading") setWaiting(true);
+    else start();
   }
 
   function start() {
@@ -62,7 +76,10 @@ export default function SetupPage() {
 
   if (!loaded) return null;
 
-  if (!profile) {
+  const reading = pending.status === "reading";
+  const failed = pending.status === "error";
+
+  if (!profile && !reading && !failed) {
     return (
       <>
         <SiteHeader />
@@ -97,26 +114,39 @@ export default function SetupPage() {
             </svg>
           </span>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: "block", fontWeight: 700, overflowWrap: "anywhere" }}>{profile.fileName}</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--good-ink)" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M5 12l5 5L20 7" />
-              </svg>
-              {replacing ? "Reading..." : "Read and ready"}
-            </span>
+            <span style={{ display: "block", fontWeight: 700, overflowWrap: "anywhere" }}>{pending.status === "idle" ? profile?.fileName : pending.fileName}</span>
+            {reading ? (
+              <span role="status" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--ink-3)" }}>
+                <span className="spinner" aria-hidden style={{ width: 14, height: 14, borderWidth: 2 }} />
+                Reading your resume. Pick an interviewer meanwhile.
+              </span>
+            ) : failed ? (
+              <span style={{ display: "block", fontSize: 14, color: "var(--error-ink)" }}>Couldn&apos;t read this one.</span>
+            ) : (
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--good-ink)" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12l5 5L20 7" />
+                </svg>
+                Read and ready
+              </span>
+            )}
           </span>
-          <label htmlFor={replaceId} className="btn btn-light btn-sm upload-btn" style={{ background: "var(--bg)" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M21 12a9 9 0 1 1-3-6.7" />
-              <path d="M21 4v5h-5" />
-            </svg>
-            Replace
-          </label>
-          <input id={replaceId} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onReplace} disabled={replacing} />
+          {!reading && (
+            <>
+              <label htmlFor={replaceId} className={`btn btn-sm upload-btn ${failed ? "btn-dark" : "btn-light"}`} style={failed ? undefined : { background: "var(--bg)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M21 12a9 9 0 1 1-3-6.7" />
+                  <path d="M21 4v5h-5" />
+                </svg>
+                {failed ? "Try another file" : "Replace"}
+              </label>
+              <input id={replaceId} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onReplace} />
+            </>
+          )}
         </div>
-        {error && (
+        {(failed || fileError) && (
           <p className="error" role="alert" style={{ marginTop: 12 }}>
-            {error}
+            {fileError ?? (pending.status === "error" ? pending.message : "")}
           </p>
         )}
 
@@ -204,12 +234,21 @@ export default function SetupPage() {
               {chosen.pro && BETA ? " · Pro interviewers are free during beta" : ""}
             </p>
           </div>
-          <button type="button" className="btn btn-dark" style={{ minHeight: 60, fontSize: 18 }} onClick={start}>
-            Start interview
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
+          <button type="button" className="btn btn-dark" style={{ minHeight: 60, fontSize: 18 }} onClick={onStart} disabled={failed || waiting} aria-busy={waiting}>
+            {waiting ? (
+              <>
+                <span className="spinner" aria-hidden />
+                Finishing your resume...
+              </>
+            ) : (
+              <>
+                Start interview
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12h14" />
+                  <path d="M13 6l6 6-6 6" />
+                </svg>
+              </>
+            )}
           </button>
         </section>
       </main>
