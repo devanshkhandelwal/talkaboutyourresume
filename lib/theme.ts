@@ -2,7 +2,7 @@
 export type Theme = "light" | "dark";
 
 export const THEME_KEY = "tayr.theme";
-export const THEME_COLOR: Record<Theme, string> = { light: "#fbfbf9", dark: "#111114" };
+export const THEME_COLOR: Record<Theme, string> = { light: "#ffffff", dark: "#000000" };
 
 /**
  * Runs in <head> before first paint, so a saved dark choice never flashes light.

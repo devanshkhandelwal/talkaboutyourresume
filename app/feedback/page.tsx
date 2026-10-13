@@ -4,7 +4,11 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SiteHeader } from "@/components/Chrome";
-import { getInterviewer } from "@/lib/interviewers";
+import { INTERVIEWERS, getInterviewer } from "@/lib/interviewers";
+import { BETA } from "@/lib/config";
+import { dayKey, getPracticedDays, recordPractice } from "@/lib/practice";
+import { Avatar } from "@/components/Avatar";
+import { PixelCalendar } from "@/components/PixelCalendar";
 import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
 import { AudioPlayer } from "@/components/AudioPlayer";
@@ -33,15 +37,15 @@ function ReviewSteps() {
     <div role="status" style={{ marginTop: 24 }}>
       <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
         {STEPS.map((s, i) => (
-          <li key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, color: i <= current ? "var(--ink)" : "var(--ink-3)", fontWeight: i === current ? 700 : 400 }}>
+          <li key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, color: i <= current ? "var(--ink)" : "var(--ink-3)", fontWeight: i === current ? 600 : 400 }}>
             {i < current ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--good)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M5 12l5 5L20 7" />
               </svg>
             ) : i === current ? (
               <span className="spinner" aria-hidden />
             ) : (
-              <span aria-hidden style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--line-2)" }} />
+              <span aria-hidden style={{ width: 20, height: 20, borderRadius: 4, border: "2px solid var(--ink-3)" }} />
             )}
             {s.label}
           </li>
@@ -85,10 +89,14 @@ export default function FeedbackPage() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [saved, setSaved] = useState<"idle" | "saving" | "done">("idle");
+  const [practiced, setPracticed] = useState<string[]>([]);
 
   useEffect(() => {
     const s = store.getSession();
     setSession(s);
+    // Cross today off the calendar once there's a real interview to count.
+    const answered = s?.transcript.filter((l) => l.role === "user").length ?? 0;
+    setPracticed(s && answered >= 2 ? recordPractice(new Date(s.endedAt ?? Date.now())) : getPracticedDays());
     const r = store.getReport();
     setLoaded(true);
     if (r) {
@@ -146,6 +154,12 @@ export default function FeedbackPage() {
     a.click();
   }
 
+  function practiceWith(id: string) {
+    const prev = store.getSetup();
+    store.setSetup({ interviewerId: id, focusNote: prev?.focusNote ?? "", questions: prev?.questions ?? [] });
+    router.push("/setup");
+  }
+
   function retry(title: string, tip: string) {
     router.push(`/interview?retry=${encodeURIComponent(`${title}. Coaching note: ${tip}`)}`);
   }
@@ -171,14 +185,20 @@ export default function FeedbackPage() {
   const total = report?.answers.length ?? 0;
   const strong = report?.answers.filter((a) => a.verdict === "strong").length ?? 0;
   const weakest = report && report.weakestIndex !== null ? report.answers[report.weakestIndex] ?? null : null;
+  // Suggest the next interviewer in the list (they get tougher), wrapping around.
+  const next = INTERVIEWERS[(INTERVIEWERS.findIndex((i) => i.id === interviewer.id) + 1) % INTERVIEWERS.length];
+  const monthName = new Date().toLocaleDateString([], { month: "long" });
+  const thisMonth = dayKey(new Date()).slice(0, 7);
+  const daysThisMonth = practiced.filter((d) => d.startsWith(thisMonth)).length;
 
   return (
     <>
       <SiteHeader />
-      <main className="narrow" style={{ paddingTop: 24, paddingBottom: 96 }}>
+      <main className="wrap with-aside" style={{ maxWidth: "calc(1160px + 2 * var(--gutter))", paddingTop: 24, paddingBottom: 96 }}>
+        <div style={{ minWidth: 0, maxWidth: 760 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <span style={{ flex: "0 0 auto", width: 52, height: 52, borderRadius: "50%", background: "var(--good)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 8px var(--good-soft)" }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <span style={{ flex: "0 0 auto", width: 48, height: 48, borderRadius: 8, background: "var(--good-soft)", border: "2px solid var(--ink)", boxShadow: "3px 3px 0 var(--ink)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M5 12l5 5L20 7" />
             </svg>
           </span>
@@ -188,7 +208,7 @@ export default function FeedbackPage() {
         </div>
 
         {audioUrl && audio && (
-          <section aria-label="Your interview recording" style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+          <section aria-label="Your interview recording" style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
             <AudioPlayer src={audioUrl} durationMs={audio.durationMs} onDownload={downloadAudio} />
             <p className="subtle" style={{ margin: 0 }}>
               Your recording stays in this tab and isn&apos;t saved anywhere. Download it to keep it.
@@ -196,7 +216,7 @@ export default function FeedbackPage() {
           </section>
         )}
 
-        <h1 className="display" style={{ marginTop: 28, fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
+        <h1 className="display h2" style={{ marginTop: 32 }}>
           {tooShort ? "That was a short one." : "Nice work. Here's how it went."}
         </h1>
 
@@ -219,11 +239,11 @@ export default function FeedbackPage() {
             <p style={{ margin: "16px 0 0", fontSize: "1.1875rem", color: "var(--ink-2)" }}>{report.summary}</p>
 
             {report.bestMoment && (
-              <section aria-labelledby="best" style={{ marginTop: 28, padding: 24, borderRadius: 20, background: "var(--accent-soft)" }}>
-                <h2 id="best" style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--accent-ink)" }}>
+              <section aria-labelledby="best" className="card" style={{ marginTop: 28, padding: 24, background: "var(--hl)", color: "#000" }}>
+                <h2 id="best" style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 600 }}>
                   Your best moment
                 </h2>
-                <p className="display" style={{ fontWeight: 700, fontSize: "1.375rem", lineHeight: 1.35, color: "var(--best-ink)", letterSpacing: "-0.01em" }}>
+                <p className="display" style={{ fontWeight: 500, fontSize: "1.375rem", lineHeight: 1.35, color: "var(--best-ink)", letterSpacing: "-0.01em" }}>
                   &ldquo;{report.bestMoment.quote}&rdquo;
                 </p>
                 <p style={{ margin: "10px 0 0", color: "var(--best-ink)" }}>{report.bestMoment.why}</p>
@@ -231,7 +251,7 @@ export default function FeedbackPage() {
             )}
 
             {total > 0 && (
-              <section className="card" style={{ marginTop: 16, padding: 24 }}>
+              <section className="card" style={{ marginTop: 20, padding: 24 }}>
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
                   <h2 style={{ margin: 0, fontSize: "1.125rem" }}>
                     {strong} of {total} answers were specific
@@ -240,10 +260,10 @@ export default function FeedbackPage() {
                 </div>
                 <div aria-hidden style={{ marginTop: 14, display: "flex", gap: 6 }}>
                   {report.answers.map((_, i) => (
-                    <span key={i} style={{ flex: "1 1 0", height: 10, borderRadius: 999, background: i < strong ? "var(--good)" : "var(--line)" }} />
+                    <span key={i} style={{ flex: "1 1 0", height: 14, borderRadius: 2, border: "2px solid var(--ink)", background: i < strong ? "var(--good-soft)" : "transparent" }} />
                   ))}
                 </div>
-                <p style={{ margin: "12px 0 0", fontWeight: 700 }}>
+                <p style={{ margin: "12px 0 0", fontWeight: 600 }}>
                   {strong === total ? "Every answer landed. Try a tougher interviewer next." : total - strong === 1 ? "One more and you're interview-ready." : `${total - strong} answers to tighten up.`}
                 </p>
                 {weakest && (
@@ -257,12 +277,12 @@ export default function FeedbackPage() {
 
             {total > 0 && (
               <>
-                <h2 style={{ margin: "40px 0 0", fontSize: "1.25rem" }}>Answer by answer</h2>
-                <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", borderTop: "1px solid var(--line)" }}>
+                <h2 style={{ margin: "40px 0 0", fontSize: "1.25rem", fontWeight: 600 }}>Answer by answer</h2>
+                <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", borderTop: "2px solid var(--line)" }}>
                   {report.answers.map((a, i) => (
                     <li key={i} style={{ padding: "20px 0", borderBottom: "1px solid var(--line)" }}>
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                        <span style={{ fontWeight: 700 }}>{a.title}</span>
+                        <span style={{ fontWeight: 600 }}>{a.title}</span>
                         <span className={`chip ${CHIP[a.verdict] ?? "chip-vague"}`}>{LABEL[a.verdict] ?? a.verdict}</span>
                       </div>
                       <p className="muted" style={{ margin: "6px 0 0" }}>{a.tip}</p>
@@ -281,7 +301,7 @@ export default function FeedbackPage() {
         )}
 
         <details style={{ marginTop: 20 }}>
-          <summary style={{ cursor: "pointer", color: "var(--accent)", fontWeight: 500 }}>Read the full transcript</summary>
+          <summary style={{ cursor: "pointer", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>Read the full transcript</summary>
           <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             {session.transcript.map((l, i) => (
               <p key={i} style={{ margin: 0 }}>
@@ -294,14 +314,14 @@ export default function FeedbackPage() {
           </div>
         </details>
 
-        <p style={{ marginTop: 32, display: "flex", justifyContent: "center" }}>
+        <p style={{ marginTop: 32 }}>
           <Link href="/setup" className="btn btn-light">
             Practice again
           </Link>
         </p>
 
         {/* A light card: the email ask shouldn't outweigh practicing again. */}
-        <section aria-labelledby="save-title" className="card" style={{ marginTop: 32, padding: 28, borderRadius: 24 }}>
+        <section aria-labelledby="save-title" className="card" style={{ marginTop: 40, padding: 28 }}>
           {saved === "done" ? (
             <p className="display" style={{ fontSize: "1.5rem" }}>You&apos;re on the list. Thanks for trying it!</p>
           ) : (
@@ -333,6 +353,40 @@ export default function FeedbackPage() {
           )}
         </section>
 
+        </div>
+
+        <aside aria-label="Your practice" className="aside-sticky">
+          <section aria-labelledby="month-title" className="card" style={{ padding: 20 }}>
+            <h2 id="month-title" style={{ margin: "0 0 14px", fontSize: "1.125rem", fontWeight: 600 }}>
+              {monthName}
+            </h2>
+            <PixelCalendar practiced={practiced} />
+            <p style={{ margin: "14px 0 0", fontWeight: 600 }}>
+              {daysThisMonth === 0 ? "Finish an interview to cross off today." : daysThisMonth === 1 ? "1 day practiced this month" : `${daysThisMonth} days practiced this month`}
+            </p>
+            <p className="subtle" style={{ margin: "4px 0 0" }}>Kept in this browser only.</p>
+          </section>
+
+          <section aria-labelledby="next-title" className="card" style={{ padding: 20 }}>
+            <h2 id="next-title" style={{ margin: "0 0 14px", fontSize: "1.125rem", fontWeight: 600 }}>
+              Try someone new
+            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <Avatar character={next.id} size={56} decorative />
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>{next.name}</p>
+                <p className="subtle" style={{ margin: 0 }}>
+                  {next.level}
+                  {next.pro && BETA ? ", free in beta" : ""}
+                </p>
+              </div>
+            </div>
+            <p className="muted" style={{ margin: "12px 0 16px", fontSize: 15 }}>{next.blurb}</p>
+            <button type="button" className="btn btn-light btn-sm" style={{ width: "100%" }} onClick={() => practiceWith(next.id)}>
+              Practice with {next.name.replace(/^The /, "the ")}
+            </button>
+          </section>
+        </aside>
       </main>
     </>
   );
