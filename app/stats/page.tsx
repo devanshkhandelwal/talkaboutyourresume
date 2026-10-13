@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { timingSafeEqual } from "node:crypto";
 import { SiteHeader } from "@/components/Chrome";
 import { INTERVIEWERS } from "@/lib/interviewers";
-import { EVENTS, readEvents, redisEnabled } from "@/lib/limits";
+import { EVENTS, readEvents, readUploads, redisEnabled, type UploadRecord } from "@/lib/limits";
 
 // Private usage numbers: /stats?key=<STATS_KEY>. Anything else is a 404, and
 // the page is a 404 everywhere until STATS_KEY is set.
@@ -53,7 +53,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
     );
   }
 
-  const days = await readEvents(30);
+  const [days, uploads] = await Promise.all([readEvents(30), readUploads()]);
   const week = days.slice(0, 7);
   const today = days.slice(0, 1);
   const daily = [...days].reverse();
@@ -103,6 +103,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
             <h2 id="all-title" style={{ margin: "0 0 12px", fontSize: "1.125rem", fontWeight: 600 }}>Every event</h2>
             <StatTable first="Event" rows={EVENTS.map((e) => ({ label: LABELS[e], today: sum(today, e), week: sum(week, e), month: sum(days, e) }))} />
           </section>
+          <Uploads uploads={uploads} />
           <section aria-labelledby="who-title" className="card" style={{ padding: 24 }}>
             <h2 id="who-title" style={{ margin: "0 0 12px", fontSize: "1.125rem", fontWeight: 600 }}>Interviewers picked</h2>
             <StatTable
@@ -113,6 +114,104 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         </div>
       </main>
     </>
+  );
+}
+
+const OUTCOME: Record<UploadRecord["outcome"], string> = {
+  read: "Read",
+  unreadable: "No text (scanned?)",
+  no_topics: "Nothing to ask about",
+  too_big: "Over 5 MB",
+  error: "Error",
+};
+
+const SIZE_BUCKETS = [
+  { label: "Under 100 KB", max: 100 * 1024 },
+  { label: "100 to 500 KB", max: 500 * 1024 },
+  { label: "500 KB to 1 MB", max: 1024 * 1024 },
+  { label: "1 to 5 MB", max: 5 * 1024 * 1024 },
+  { label: "Over 5 MB", max: Infinity },
+];
+
+function kb(bytes: number) {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
+
+function median(nums: number[]) {
+  const a = [...nums].sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length === 0 ? 0 : a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+/** Recent resume uploads: file type, size and outcome only. */
+function Uploads({ uploads }: { uploads: UploadRecord[] }) {
+  const cell: React.CSSProperties = { padding: "8px 0", borderBottom: "1px solid var(--line)", textAlign: "right", fontVariantNumeric: "tabular-nums" };
+  const types = (["pdf", "docx", "other"] as const)
+    .map((t) => {
+      const of = uploads.filter((u) => u.type === t);
+      return { t, n: of.length, read: of.filter((u) => u.outcome === "read").length, median: median(of.map((u) => u.bytes)) };
+    })
+    .filter((r) => r.n > 0);
+  return (
+    <section aria-labelledby="uploads-title" className="card" style={{ padding: 24 }}>
+      <h2 id="uploads-title" style={{ margin: "0 0 4px", fontSize: "1.125rem", fontWeight: 600 }}>Resume files</h2>
+      <p className="subtle" style={{ margin: "0 0 12px" }}>Last {uploads.length} uploads. Type and size only, never the name or content.</p>
+      {uploads.length === 0 ? (
+        <p className="muted" style={{ margin: 0 }}>No uploads recorded yet.</p>
+      ) : (
+        <>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+            <thead>
+              <tr>
+                <th style={{ ...cell, textAlign: "left", fontWeight: 600 }}>Type</th>
+                <th style={{ ...cell, fontWeight: 600 }}>Uploads</th>
+                <th style={{ ...cell, fontWeight: 600 }}>Read OK</th>
+                <th style={{ ...cell, fontWeight: 600 }}>Median size</th>
+              </tr>
+            </thead>
+            <tbody>
+              {types.map((r) => (
+                <tr key={r.t}>
+                  <td style={{ ...cell, textAlign: "left" }}>{r.t.toUpperCase()}</td>
+                  <td style={cell}>{r.n}</td>
+                  <td style={cell}>{Math.round((r.read / r.n) * 100)}%</td>
+                  <td style={cell}>{kb(r.median)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <h3 style={{ margin: "20px 0 8px", fontSize: 15, fontWeight: 600 }}>Sizes</h3>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+            <tbody>
+              {SIZE_BUCKETS.map((b, i) => {
+                const min = i === 0 ? 0 : SIZE_BUCKETS[i - 1].max;
+                const n = uploads.filter((u) => u.bytes >= min && u.bytes < b.max).length;
+                return (
+                  <tr key={b.label}>
+                    <td style={{ ...cell, textAlign: "left" }}>{b.label}</td>
+                    <td style={cell}>{n}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <h3 style={{ margin: "20px 0 8px", fontSize: 15, fontWeight: 600 }}>Latest</h3>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+            <tbody>
+              {uploads.slice(0, 10).map((u, i) => (
+                <tr key={i}>
+                  <td style={{ ...cell, textAlign: "left" }}>{u.at.slice(0, 16).replace("T", " ")}</td>
+                  <td style={cell}>{u.type.toUpperCase()}</td>
+                  <td style={{ ...cell, whiteSpace: "nowrap", paddingLeft: 8 }}>{kb(u.bytes)}</td>
+                  <td style={cell}>{OUTCOME[u.outcome] ?? u.outcome}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="subtle" style={{ margin: "8px 0 0" }}>Times are UTC.</p>
+        </>
+      )}
+    </section>
   );
 }
 

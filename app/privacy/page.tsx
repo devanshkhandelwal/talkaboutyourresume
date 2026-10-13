@@ -21,7 +21,7 @@ export default function Privacy() {
         </p>
         <h2 style={{ fontSize: "1.125rem", marginTop: 24 }}>Usage counts</h2>
         <p className="muted">
-          We count anonymous page views with Vercel Web Analytics, which uses no cookies, and keep daily totals of a few steps, like how many interviews were started or finished. These are counts only. They aren&apos;t tied to you, your email or your resume.
+          We count anonymous page views with Vercel Web Analytics, which uses no cookies, and keep daily totals of a few steps, like how many interviews were started or finished. We also note the type and size of each uploaded resume file (for example &ldquo;PDF, 180 KB&rdquo;), never its name or contents. None of this is tied to you, your email or your resume.
         </p>
         <h2 style={{ fontSize: "1.125rem", marginTop: 24 }}>What we never do</h2>
         <p className="muted">

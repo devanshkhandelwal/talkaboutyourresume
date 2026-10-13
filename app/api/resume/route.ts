@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { trackEvent } from "@/lib/limits";
+import { trackEvent, trackUpload, type UploadOutcome } from "@/lib/limits";
 import { askJson, MODELS } from "@/lib/claude";
 import type { ClaudeUsage, ResumeProfile, ResumeTopic } from "@/lib/types";
 
@@ -67,19 +67,28 @@ const SCHEMA = {
 };
 
 export async function POST(req: NextRequest) {
+  let file: File | null = null;
+  // Type, size and outcome only; the file name and content are never stored.
+  const recordUpload = (outcome: UploadOutcome) => {
+    const f = file;
+    if (f) after(() => trackUpload(f, outcome));
+  };
   try {
     const form = await req.formData();
-    const file = form.get("file");
-    if (!(file instanceof File)) {
+    const field = form.get("file");
+    if (!(field instanceof File)) {
       return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
     }
+    file = field;
     if (file.size > MAX_BYTES) {
+      recordUpload("too_big");
       return NextResponse.json({ error: "That file is over 5 MB." }, { status: 413 });
     }
 
     const text = (await extractText(file)).replace(/\s+\n/g, "\n").trim().slice(0, 20000);
     if (text.length < 200) {
       after(() => trackEvent("resume_failed"));
+      recordUpload("unreadable");
       return NextResponse.json(
         { error: "We couldn't read much text from that file. Is it a scanned image? Try exporting it as a PDF from Word or Google Docs." },
         { status: 422 },
@@ -120,15 +129,18 @@ export async function POST(req: NextRequest) {
 
     if (profile.topics.length === 0) {
       after(() => trackEvent("resume_failed"));
+      recordUpload("no_topics");
       return NextResponse.json({ error: "We couldn't find anything to ask about. Is this a resume?" }, { status: 422 });
     }
     after(() => trackEvent("resume_read"));
+    recordUpload("read");
     // usage (for the cost display) and the resume text (for the heatmap) ride along for the
-    // browser, which keeps them apart from the profile. Nothing is stored on the server.
+    // browser, which keeps them apart from the profile. Neither is stored on the server.
     return NextResponse.json({ ...profile, usage, resumeText: text } satisfies ResumeProfile & { usage: ClaudeUsage; resumeText: string });
   } catch (err) {
     console.error("[resume]", err);
     after(() => trackEvent("resume_failed"));
+    recordUpload("error");
     const message = err instanceof Error && err.message.startsWith("Please") ? err.message : "Something went wrong reading your resume. Please try again.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -96,3 +96,43 @@ export async function readEvents(days: number): Promise<{ day: string; counts: R
     }),
   );
 }
+
+// Resume uploads: only the file type, size and outcome, never the name or content.
+// Kept as a capped list of the most recent uploads for the /stats page.
+const UPLOADS_KEY = "uploads";
+const UPLOADS_KEPT = 500;
+
+export type UploadOutcome = "read" | "unreadable" | "no_topics" | "too_big" | "error";
+export type UploadRecord = { at: string; type: "pdf" | "docx" | "other"; bytes: number; outcome: UploadOutcome };
+
+export function uploadType(file: File): UploadRecord["type"] {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf") || file.type === "application/pdf") return "pdf";
+  if (name.endsWith(".docx")) return "docx";
+  return "other";
+}
+
+/** Records one upload. Never throws: tracking must not break a request. */
+export async function trackUpload(file: File, outcome: UploadOutcome): Promise<void> {
+  if (!redisEnabled) return;
+  const entry: UploadRecord = { at: new Date().toISOString(), type: uploadType(file), bytes: file.size, outcome };
+  try {
+    await redis(["LPUSH", UPLOADS_KEY, JSON.stringify(entry)]);
+    await redis(["LTRIM", UPLOADS_KEY, 0, UPLOADS_KEPT - 1]);
+    await redis(["EXPIRE", UPLOADS_KEY, 60 * 60 * 24 * 400]);
+  } catch (err) {
+    console.error("[track upload]", err);
+  }
+}
+
+/** The most recent uploads, newest first. */
+export async function readUploads(): Promise<UploadRecord[]> {
+  const raw = ((await redis(["LRANGE", UPLOADS_KEY, 0, UPLOADS_KEPT - 1])) ?? []) as string[];
+  return raw.flatMap((r) => {
+    try {
+      return [JSON.parse(r) as UploadRecord];
+    } catch {
+      return [];
+    }
+  });
+}
