@@ -115,24 +115,59 @@
 .home-h2 { margin: 0 0 12px; font-weight: 600; font-size: clamp(1.9rem, 3.6vw, 3rem); line-height: 1.06; letter-spacing: -0.025em; color: var(--ink); text-wrap: balance; }
 .home-sub { margin: 0 0 32px; max-width: 62ch; color: var(--ink-2); font-size: 1.125rem; line-height: 1.5; }
 
-.role-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 24px; border-radius: 12px; background: var(--paper); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+/* Section heading on the left, its control (the role picker) on the right. */
+.section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 40px; margin-bottom: 36px; }
+.section-head .home-sub { margin-bottom: 0; }
+.home-section-ruled { border-top: 2px solid var(--ink); }
+
+.role-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 12px; background: var(--paper); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
 .role-tabs button { padding: 7px 14px; border: 0; border-radius: 8px; background: none; color: var(--ink-3); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .role-tabs button:hover { color: var(--ink); }
 .role-tabs button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 
-.example-claim { margin: 0 0 28px; font-size: 1.125rem; color: var(--ink-2); }
 .mark { padding: 1px 4px; background: var(--hl); color: #000; font-weight: 600; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
-.transcript { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(0, 3fr); gap: 24px 32px; margin: 0; }
-.transcript dt { padding-top: 4px; }
-.transcript dd { margin: 0; max-width: 66ch; font-size: clamp(1.2rem, 1.7vw, 1.5rem); line-height: 1.45; letter-spacing: -0.01em; color: var(--ink); }
-.transcript dd.before { color: var(--ink-3); }
+/* The example: a resume card, then the question and both answers. */
+.example { display: grid; grid-template-columns: minmax(260px, 4fr) minmax(0, 9fr); gap: 28px; align-items: start; }
+.resume-card { padding: 22px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); box-shadow: 4px 4px 0 var(--ink); }
+.resume-kicker { margin: 0 0 14px; font-size: 13px; color: var(--ink-3); }
+.resume-role { margin: 0; font-weight: 600; font-size: 1.125rem; }
+.resume-org { margin: 2px 0 14px; color: var(--ink-3); }
+.resume-card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; line-height: 1.4; }
+.resume-lines { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.resume-lines i { display: block; height: 6px; border-radius: 1px; background: var(--ink); opacity: 0.12; }
+.resume-lines i:nth-child(1) { width: 92%; } .resume-lines i:nth-child(2) { width: 78%; } .resume-lines i:nth-child(3) { width: 58%; }
 
-.pricing { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px var(--gutter); margin-top: 32px; }
+.example-talk { display: flex; flex-direction: column; gap: 16px; }
+.ask-card { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 18px 22px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); box-shadow: 4px 4px 0 var(--ink); }
+.ask-card p { margin: 0; font-size: clamp(1.2rem, 1.6vw, 1.45rem); font-weight: 500; letter-spacing: -0.01em; }
+.answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.answer { display: flex; flex-direction: column; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); overflow: hidden; }
+.answer-head { margin: 0; padding: 8px 16px; border-bottom: 2px solid var(--ink); font-size: 14px; font-weight: 600; color: #000; }
+.answer-body { flex: 1 1 auto; margin: 0; padding: 16px; font-size: 1.125rem; line-height: 1.45; }
+.answer-foot { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0 16px 16px; list-style: none; font-size: 14px; font-weight: 600; }
+.answer-foot li { display: inline-flex; align-items: center; gap: 4px; }
+.answer-before { border-style: dashed; }
+.answer-before .answer-head { background: #e4e4e8; border-bottom-style: dashed; }
+.answer-before .answer-body { color: var(--ink-3); }
+.answer-after { box-shadow: 4px 4px 0 var(--ink); }
+.answer-after .answer-head { background: #b8f0cf; }
+
+.pricing { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; max-width: 1040px; }
+.plan { display: flex; flex-direction: column; padding: 26px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); box-shadow: 4px 4px 0 var(--ink); }
 .plan-name { display: flex; align-items: center; margin: 0; font-size: 1.125rem; font-weight: 600; }
-.plan-price { margin: 8px 0 0; font-size: 3.25rem; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.plan-price { margin: 10px 0 0; font-size: 3.25rem; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
 .plan-price small { font-size: 1rem; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
-.plan ul { margin: 20px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: var(--ink-2); }
+.plan ul { margin: 22px 0 0; padding: 22px 0 0; border-top: 2px solid var(--ink); list-style: none; display: flex; flex-direction: column; gap: 12px; color: var(--ink-2); }
+.plan li { display: flex; align-items: flex-start; gap: 10px; }
+.plan li svg { flex: 0 0 auto; margin-top: 4px; color: var(--ink); }
+.plan-cta { margin-top: 28px; }
+.plan-cta p:not([role="alert"]) { display: none; }
+/* Pro is drawn inverted, so the two plans read apart at a glance. */
+.plan-pro { background: var(--ink); color: var(--paper); }
+.plan-pro ul { color: var(--paper); border-top-color: var(--paper); }
+.plan-pro li svg, .plan-pro .plan-price small { color: var(--paper); }
+.plan-pro .plan-price small { opacity: 0.75; }
 
 /* Closing row: headline left, a second way in at the right edge. */
 .home-close { position: relative; margin-top: clamp(40px, 6vw, 80px); min-height: 300px; display: flex; align-items: center; overflow: hidden; color: var(--ink); background: var(--paper); border-top: 2px solid var(--ink); }
@@ -145,6 +180,7 @@
 /* Narrower windows: stack the hero. Copy first, then the room as its own panel,
    cropped to the desk side, so text never sits on top of the drawing. */
 @media (max-width: 1100px) {
+  .example { grid-template-columns: minmax(0, 1fr); }
   .hero-float { display: none; }
   .home-hero { flex-direction: column; align-items: stretch; min-height: 0; }
   .home-hero-copy { order: 1; max-width: 680px; padding-bottom: 28px; }
@@ -154,9 +190,7 @@
   .home { font-size: 16px; }
   .home > .site-header .credits-badge { display: none; }
   .home-hero-copy { padding-top: 96px; }
-  .transcript { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .transcript dd { margin-bottom: 18px; }
-  .pricing { grid-template-columns: minmax(0, 1fr); }
+  .answers, .pricing { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero-float > * { opacity: 1 !important; transform: none !important; }

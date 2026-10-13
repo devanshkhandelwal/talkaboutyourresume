@@ -1,6 +1,6 @@
 import { SiteFooter, SiteHeader } from "@/components/Chrome";
 import { PixelScene } from "@/components/PixelScene";
-import { AnswerExample } from "@/components/RoleExamples";
+import { AnswerExample, RolePicker } from "@/components/RoleExamples";
 import { UploadButton } from "@/components/UploadButton";
 import { FREE_MINUTES, PRO_MINUTES, PRO_PRICE } from "@/lib/config";
 import "./home.css";
@@ -63,40 +63,53 @@ export default function Home() {
         </section>
 
         <section id="how" className="wrap home-section" aria-labelledby="answers-title">
-          <h2 id="answers-title" className="home-h2">
-            Same experience, two answers
-          </h2>
-          <p className="home-sub">The interviewer digs into one line of your resume. Practice turns a vague answer into one with a starting point, what you did, and the result.</p>
+          <div className="section-head">
+            <div>
+              <h2 id="answers-title" className="home-h2">
+                Same experience, two answers
+              </h2>
+              <p className="home-sub">The interviewer digs into one line of your resume. Practice turns a vague answer into one with a starting point, what you did, and the result.</p>
+            </div>
+            <RolePicker />
+          </div>
           <AnswerExample />
         </section>
 
-        <section id="pricing" className="wrap home-section" aria-labelledby="pricing-title">
-          <h2 id="pricing-title" className="home-h2">
-            Pricing
-          </h2>
+        <section id="pricing" className="wrap home-section home-section-ruled" aria-labelledby="pricing-title">
+          <div className="section-head">
+            <div>
+              <h2 id="pricing-title" className="home-h2">
+                Pricing
+              </h2>
+              <p className="home-sub">Free while we&rsquo;re in Beta. No account needed.</p>
+            </div>
+          </div>
           <div className="pricing">
             <div className="plan">
-              <h3 className="plan-name">Free</h3>
+              <p className="plan-name">Free</p>
               <p className="plan-price">$0</p>
               <ul>
-                <li>One practice interview with any interviewer</li>
-                <li>Up to {FREE_MINUTES} minutes</li>
-                <li>Feedback on every answer, plus the transcript</li>
-                <li>A retry of your weakest answer</li>
+                <li><Tick /> One practice interview with any interviewer</li>
+                <li><Tick /> Up to {FREE_MINUTES} minutes</li>
+                <li><Tick /> Feedback on every answer, plus the transcript</li>
+                <li><Tick /> A retry of your weakest answer</li>
               </ul>
+              <div className="plan-cta">
+                <UploadButton />
+              </div>
             </div>
-            <div className="plan">
-              <h3 className="plan-name">
+            <div className="plan plan-pro">
+              <p className="plan-name">
                 Pro <span className="chip-tag tag-soon">Coming soon</span>
-              </h3>
+              </p>
               <p className="plan-price">
                 ${PRO_PRICE} <small>a month</small>
               </p>
               <ul>
-                <li>{PRO_MINUTES} minutes of practice a month</li>
-                <li>Questions tailored to a specific job</li>
-                <li>All six interviewers</li>
-                <li>Your progress from one session to the next</li>
+                <li><Tick /> {PRO_MINUTES} minutes of practice a month</li>
+                <li><Tick /> Questions tailored to a specific job</li>
+                <li><Tick /> All six interviewers</li>
+                <li><Tick /> Your progress from one session to the next</li>
               </ul>
             </div>
           </div>
@@ -114,5 +127,13 @@ export default function Home() {
 
       <SiteFooter />
     </div>
+  );
+}
+
+function Tick() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12l5 5L20 7" />
+    </svg>
   );
 }

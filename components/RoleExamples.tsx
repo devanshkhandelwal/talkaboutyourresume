@@ -79,36 +79,75 @@ function useExample() {
   return useSyncExternalStore(subscribe, () => current, () => 0);
 }
 
-/** The same follow-up answered twice, with a picker for the role. */
-export function AnswerExample() {
+const Check = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M5 12l5 5L20 7" />
+  </svg>
+);
+
+/** The role picker, placed next to the section heading. */
+export function RolePicker() {
   const idx = useExample();
-  const ex = EXAMPLES[idx];
   return (
-    <>
-      <div className="role-tabs" role="group" aria-label="Example role">
-        {EXAMPLES.map((e, i) => (
-          <button key={e.id} type="button" aria-pressed={i === idx} onClick={() => choose(i)}>
-            {e.label}
-          </button>
-        ))}
+    <div className="role-tabs" role="group" aria-label="Example role">
+      {EXAMPLES.map((e, i) => (
+        <button key={e.id} type="button" aria-pressed={i === idx} onClick={() => choose(i)}>
+          {e.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The same follow-up answered twice: the resume line on the left, the question
+ * it prompts and both answers on the right.
+ */
+export function AnswerExample() {
+  const ex = EXAMPLES[useExample()];
+  return (
+    <div className="example" aria-live="polite">
+      <div className="resume-card">
+        <p className="resume-kicker">On the resume</p>
+        <p className="resume-role">{ex.role}</p>
+        <p className="resume-org">{ex.org}</p>
+        <ul>
+          <li>
+            <span className="mark">{ex.claim}</span>
+          </li>
+          <li>{ex.other}</li>
+        </ul>
+        <span className="resume-lines" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
       </div>
-      <p className="example-claim">
-        On the resume: <span className="mark">{ex.claim}</span>
-      </p>
-      <dl className="transcript">
-        <dt>
+
+      <div className="example-talk">
+        <div className="ask-card">
           <span className="chip-tag tag-ask">Interviewer</span>
-        </dt>
-        <dd>&ldquo;{ex.question}&rdquo;</dd>
-        <dt>
-          <span className="chip-tag tag-vague">Before practice</span>
-        </dt>
-        <dd className="before">&ldquo;{ex.before}&rdquo;</dd>
-        <dt>
-          <span className="chip-tag tag-strong">After practice</span>
-        </dt>
-        <dd>&ldquo;{ex.after}&rdquo;</dd>
-      </dl>
-    </>
+          <p>&ldquo;{ex.question}&rdquo;</p>
+        </div>
+        <div className="answers">
+          <div className="answer answer-before">
+            <p className="answer-head">Before practice</p>
+            <p className="answer-body">&ldquo;{ex.before}&rdquo;</p>
+            <p className="answer-foot">
+              <span className="chip-tag tag-vague">Vague</span>
+            </p>
+          </div>
+          <div className="answer answer-after">
+            <p className="answer-head">After practice</p>
+            <p className="answer-body">&ldquo;{ex.after}&rdquo;</p>
+            <ul className="answer-foot" aria-label="What this answer has">
+              <li><Check /> Starting point</li>
+              <li><Check /> What you did</li>
+              <li><Check /> Result</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
