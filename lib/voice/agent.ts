@@ -41,6 +41,8 @@ export class InterviewAgent {
   private agentSpeaking = false;
   private ended = false;
   private openedAt: number | null = null;
+  /** Deepgram's own explanation, if it sent one before closing. */
+  private serverError: string | null = null;
   private recDest: MediaStreamAudioDestinationNode | null = null;
   private recorder: MediaRecorder | null = null;
   private recChunks: Blob[] = [];
@@ -100,7 +102,17 @@ export class InterviewAgent {
     ws.onclose = (ev) => {
       this.closeVoiceClock();
       if (!this.ended) {
-        this.events.onError(ev.code === 1008 || ev.code === 4001 ? "The session couldn't be authorized." : "The interview connection closed.");
+        console.warn("[voice] connection closed", { code: ev.code, reason: ev.reason, wasClean: ev.wasClean });
+        // Deepgram usually sends an Error message explaining why before it closes; keep that on screen.
+        this.events.onError(
+          this.serverError
+            ? `The voice service closed the interview: ${this.serverError}`
+            : ev.code === 1008 || ev.code === 4001
+              ? "The session couldn't be authorized."
+              : ev.reason
+                ? `The interview connection closed: ${ev.reason}`
+                : "The interview connection closed.",
+        );
         this.events.onStatus("error");
       }
     };
@@ -157,7 +169,7 @@ export class InterviewAgent {
   }
 
   private handleMessage(raw: string) {
-    let msg: { type?: string; role?: "user" | "assistant"; content?: string; description?: string };
+    let msg: { type?: string; role?: "user" | "assistant"; content?: string; description?: string; code?: string };
     try {
       msg = JSON.parse(raw);
     } catch {
@@ -193,6 +205,8 @@ export class InterviewAgent {
         break;
       }
       case "Error":
+        console.warn("[voice] Deepgram error", msg);
+        this.serverError = msg.description || msg.code || null;
         this.events.onError(msg.description || "The voice service reported an error.");
         break;
     }
