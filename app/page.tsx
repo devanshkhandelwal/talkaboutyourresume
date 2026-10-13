@@ -22,7 +22,7 @@ export default function Home() {
           <p className="muted" style={{ margin: "24px 0 36px", fontSize: "1.25rem", maxWidth: 500 }}>
             The first question is easy. The follow-up is where interviews are won or lost. Practice the follow-ups on your own resume, out loud, for any role.
           </p>
-          <UploadButton />
+          <UploadButton showCredits />
         </section>
         <RoleExamples part="card" />
       </main>

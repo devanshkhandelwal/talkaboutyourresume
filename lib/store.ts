@@ -31,6 +31,7 @@ function write(key: string, value: unknown) {
 export const store = {
   getProfile: () => read<ResumeProfile>(KEYS.profile),
   setProfile: (p: ResumeProfile) => write(KEYS.profile, p),
+  clearProfile: () => write(KEYS.profile, null),
   getSetup: () => read<{ interviewerId: string; focusNote: string }>(KEYS.setup),
   setSetup: (s: { interviewerId: string; focusNote: string }) => write(KEYS.setup, s),
   getSession: () => read<InterviewSession>(KEYS.session),
