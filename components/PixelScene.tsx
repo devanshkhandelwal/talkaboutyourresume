@@ -81,6 +81,73 @@ function mulberry32(seed: number) {
   };
 }
 
+// The interviewer on the video call, 20 x 24 pixels: hair with a highlight,
+// ears, brows, eyes, a nose shadow, a smile, a navy blazer over a white collar.
+function drawPerson(px: (x: number, y: number, c: string) => void, ox: number, oy: number) {
+  const C: Record<string, string> = {
+    h: "#2b1d16", H: "#4a3426", l: "#8d5a3b", L: "#a26c48", S: "#6e4329",
+    e: "#17171d", b: "#2b1d16", m: "#5a2a22", w: "#eef1f6", j: "#1e2a5a", J: "#141d42",
+  };
+  const seg = (y: number, x0: number, x1: number, k: string) => {
+    for (let x = x0; x <= x1; x++) px(ox + x, oy + y, C[k]);
+  };
+  const dot = (x: number, y: number, k: string) => px(ox + x, oy + y, C[k]);
+
+  // Shoulders and blazer first, so the neck and collar sit on top.
+  seg(16, 3, 16, "j");
+  seg(17, 1, 18, "j");
+  for (let y = 18; y < 24; y++) seg(y, 0, 19, "j");
+  for (let y = 18; y < 24; y++) seg(y, 9, 10, "J");
+  seg(16, 7, 12, "w");
+  seg(17, 8, 11, "w");
+  seg(18, 9, 10, "w");
+  // Neck.
+  seg(14, 6, 13, "S");
+  seg(15, 8, 11, "S");
+  // Hair.
+  seg(0, 6, 13, "h");
+  seg(1, 4, 15, "h");
+  seg(2, 3, 16, "h");
+  seg(2, 6, 10, "H");
+  seg(3, 3, 16, "h");
+  seg(3, 5, 7, "H");
+  seg(4, 3, 16, "h");
+  // Face.
+  seg(5, 3, 16, "h");
+  seg(5, 5, 14, "l");
+  seg(6, 3, 4, "h");
+  seg(6, 5, 14, "l");
+  seg(6, 7, 11, "L");
+  seg(6, 15, 16, "h");
+  dot(3, 7, "h");
+  seg(7, 4, 15, "l");
+  dot(16, 7, "h");
+  seg(7, 6, 8, "b");
+  seg(7, 11, 13, "b");
+  seg(8, 3, 16, "l");
+  seg(9, 3, 16, "l");
+  dot(2, 8, "S");
+  dot(2, 9, "S");
+  dot(17, 8, "S");
+  dot(17, 9, "S");
+  dot(7, 9, "e");
+  dot(12, 9, "e");
+  seg(10, 3, 16, "l");
+  dot(10, 10, "S");
+  seg(11, 4, 15, "l");
+  seg(11, 9, 10, "S");
+  dot(4, 11, "S");
+  dot(15, 11, "S");
+  seg(12, 4, 15, "l");
+  seg(13, 5, 14, "l");
+  dot(5, 13, "S");
+  dot(14, 13, "S");
+  // A smile: corners one row up, then the lower lip.
+  dot(7, 12, "m");
+  dot(12, 12, "m");
+  seg(13, 8, 11, "m");
+}
+
 function draw(ctx: CanvasRenderingContext2D, p: Palette) {
   const rng = mulberry32(11);
   const px = (x: number, y: number, c: string) => {
@@ -172,20 +239,25 @@ function draw(ctx: CanvasRenderingContext2D, p: Palette) {
     }
   }
 
-  // Laptop mid-interview: the interviewer on screen, a live dot.
-  rect(122, 56, 36, 27, "#262a33");
-  rect(124, 58, 32, 23, p.screen);
-  for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x * x + y * y <= 22) px(140 + x, 67 + y, "#8d5a3b");
-  rect(135, 61, 11, 3, "#1e1e24");
-  rect(134, 63, 2, 3, "#1e1e24");
-  rect(145, 63, 2, 3, "#1e1e24");
-  px(138, 67, "#1e1e24");
-  px(142, 67, "#1e1e24");
-  rect(139, 70, 3, 1, "#3a1f1f");
-  for (let y = 0; y < 5; y++) for (let x = -9; x <= 9; x++) if ((x / 9) ** 2 + ((y - 4) / 4) ** 2 <= 1) px(140 + x, 76 + y, "#162055");
-  rect(152, 59, 2, 2, "#3dd6b8");
-  rect(118, 83, 44, 2, "#c9ced6");
-  rect(118, 85, 44, 1, "#8f96a3");
+  // Laptop mid-interview: a video call with the interviewer in their office.
+  rect(116, 50, 48, 33, "#262a33");
+  px(140, 51, "#4a4f5c");
+  rect(118, 52, 44, 29, "#e3e9f1");
+  rect(118, 70, 44, 11, "#d3dbe7");
+  // Bookshelf behind them, left.
+  rect(119, 55, 9, 1, "#8b6b4a");
+  rect(119, 63, 9, 1, "#8b6b4a");
+  const spines = ["#e85d75", "#1f3fd1", "#f2b84b", "#3b8f5a", "#6a2fd0", "#e85d75", "#f2b84b", "#1f3fd1"];
+  spines.forEach((c, i) => rect(119 + i, 56 + (i % 3), 1, 7 - (i % 3), c));
+  spines.slice(0, 6).forEach((c, i) => rect(120 + i, 64 + (i % 2), 1, 6 - (i % 2), c));
+  // Framed picture, right.
+  rect(151, 55, 8, 7, "#2b2f38");
+  rect(152, 56, 6, 5, "#9cc2e2");
+  rect(152, 59, 6, 2, "#57b06f");
+  drawPerson(px, 130, 57);
+  rect(155, 77, 3, 2, "#3dd6b8");
+  rect(112, 83, 56, 2, "#c9ced6");
+  rect(112, 85, 56, 1, "#8f96a3");
 
   // Mug with steam.
   rect(102, 75, 8, 8, "#e85d75");
