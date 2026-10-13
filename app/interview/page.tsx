@@ -141,6 +141,8 @@ export default function InterviewPage() {
       transcript: linesRef.current,
     });
     store.setReport(null);
+    // Anonymous count of finished calls; sendBeacon survives the page change.
+    if (startedAt.current) navigator.sendBeacon?.("/api/track", new Blob([JSON.stringify({ event: "interview_ended" })], { type: "application/json" }));
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     router.push("/feedback");
   }, [phase, interviewerId, focusNote, retryTopic, router]);

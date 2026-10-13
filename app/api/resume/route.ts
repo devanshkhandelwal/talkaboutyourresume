@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { trackEvent } from "@/lib/limits";
 import { askJson, MODELS } from "@/lib/claude";
 import type { ResumeProfile, ResumeTopic } from "@/lib/types";
 
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
 
     const text = (await extractText(file)).replace(/\s+\n/g, "\n").trim().slice(0, 20000);
     if (text.length < 200) {
+      after(() => trackEvent("resume_failed"));
       return NextResponse.json(
         { error: "We couldn't read much text from that file. Is it a scanned image? Try exporting it as a PDF from Word or Google Docs." },
         { status: 422 },
@@ -102,11 +104,14 @@ export async function POST(req: NextRequest) {
     };
 
     if (profile.topics.length === 0) {
+      after(() => trackEvent("resume_failed"));
       return NextResponse.json({ error: "We couldn't find anything to ask about. Is this a resume?" }, { status: 422 });
     }
+    after(() => trackEvent("resume_read"));
     return NextResponse.json(profile);
   } catch (err) {
     console.error("[resume]", err);
+    after(() => trackEvent("resume_failed"));
     const message = err instanceof Error && err.message.startsWith("Please") ? err.message : "Something went wrong reading your resume. Please try again.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

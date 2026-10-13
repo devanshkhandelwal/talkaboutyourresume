@@ -19,6 +19,10 @@ export default function Privacy() {
         <p className="muted">
           During the interview, your microphone audio is streamed to Deepgram to run the live conversation. A recording of the interview is kept in your browser tab so you can replay or download it on the feedback page. It isn&apos;t uploaded to us, and it&apos;s cleared when you refresh or leave the page.
         </p>
+        <h2 style={{ fontSize: "1.125rem", marginTop: 24 }}>Usage counts</h2>
+        <p className="muted">
+          We count anonymous page views with Vercel Web Analytics, which uses no cookies, and keep daily totals of a few steps, like how many interviews were started or finished. These are counts only. They aren&apos;t tied to you, your email or your resume.
+        </p>
         <h2 style={{ fontSize: "1.125rem", marginTop: 24 }}>What we never do</h2>
         <p className="muted">
           We don&apos;t sell your data, and nothing from your practice is shared with employers. If we ever offer shareable profiles, they will be opt-in only.
