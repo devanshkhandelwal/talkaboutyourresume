@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { getInterviewer, INTERVIEWERS } from "@/lib/interviewers";
-import { buildInterviewerPrompt } from "@/lib/prompts";
+import { buildInterviewerPrompt, isInterviewMode } from "@/lib/prompts";
 import { buildAgentSettings } from "@/lib/agentSettings";
 import { clientIp, takeDailyInterview, trackEvent } from "@/lib/limits";
 import type { ResumeProfile } from "@/lib/types";
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return NextResponse.json({ error: "Voice is not configured." }, { status: 500 });
 
-  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; questions?: unknown; retryTopic?: string };
+  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; questions?: unknown; retryTopic?: string; mode?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
   const questions = Array.isArray(body.questions)
     ? body.questions.filter((q): q is string => typeof q === "string").map((q) => q.replace(/\s+/g, " ").trim().slice(0, 200)).filter(Boolean).slice(0, 5)
     : [];
+  const mode = isInterviewMode(body.mode) ? body.mode : "mixed";
   const prompt = buildInterviewerPrompt({
     interviewer,
     profile: body.profile,
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
     questions,
     minutes: sessionMinutes,
     retryTopic,
+    mode,
   });
   const greetings = retryTopic
     ? ["Welcome back. Let's take another pass at one of your answers."]
@@ -84,6 +86,7 @@ export async function POST(req: NextRequest) {
     if (retryTopic) return trackEvent("retry_started");
     await trackEvent("interview_started");
     await trackEvent(`interviewer:${interviewer.id}`);
+    await trackEvent(`mode:${mode}`);
     if (questions.length > 0) await trackEvent("custom_questions_used");
   });
 

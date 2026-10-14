@@ -8,6 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { uploadResume } from "@/components/UploadButton";
 import { IDLE, checkResumeFile, pendingResume } from "@/lib/pendingResume";
 import { INTERVIEWERS, getInterviewer } from "@/lib/interviewers";
+import { INTERVIEW_MODES, type InterviewMode } from "@/lib/prompts";
 import { BETA, FREE_MINUTES } from "@/lib/config";
 import { store } from "@/lib/store";
 import type { ResumeProfile } from "@/lib/types";
@@ -34,6 +35,7 @@ export default function SetupPage() {
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [picked, setPicked] = useState("manager");
+  const [mode, setMode] = useState<InterviewMode>("mixed");
   const [note, setNote] = useState("");
   const [questions, setQuestions] = useState<string[]>([]);
   // Planned answers by question, and which questions have their answer box open.
@@ -72,6 +74,7 @@ export default function SetupPage() {
       setPicked(s.interviewerId);
       setNote(s.focusNote);
       setQuestions(s.questions ?? []);
+      setMode(s.mode ?? "mixed");
       setPlans(s.plans ?? {});
     }
     setLoaded(true);
@@ -136,7 +139,7 @@ export default function SetupPage() {
   function start() {
     // Only planned answers that still have a question and some text.
     const kept = Object.fromEntries(questions.flatMap((q) => (plans[q]?.trim() ? [[q, plans[q].trim()]] : [])));
-    store.setSetup({ interviewerId: picked, focusNote: note, questions, plans: kept });
+    store.setSetup({ interviewerId: picked, mode, focusNote: note, questions, plans: kept });
     store.setReport(null);
     router.push("/interview");
   }
@@ -218,6 +221,22 @@ export default function SetupPage() {
           </p>
         )}
 
+        <section aria-labelledby="mode-title" className="section-rule">
+          <h2 id="mode-title" className="display" style={{ fontSize: "2rem" }}>
+            What do you want to practice?
+          </h2>
+          <div role="group" aria-labelledby="mode-title" className="interviewer-grid" style={{ marginTop: 20 }}>
+            {INTERVIEW_MODES.map((m) => (
+              <button key={m.id} type="button" className="pick" aria-pressed={m.id === mode} onClick={() => setMode(m.id)}>
+                <span style={{ fontWeight: 600, fontSize: "1.0625rem" }}>{m.label}</span>
+                <span className="pick-sub" style={{ marginTop: 4, fontSize: 14, lineHeight: 1.4 }}>
+                  {m.blurb}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         <section aria-labelledby="pick-title" className="section-rule">
           <h2 id="pick-title" className="display" style={{ fontSize: "2rem" }}>
             Pick your interviewer
@@ -249,130 +268,141 @@ export default function SetupPage() {
           </div>
         </section>
 
-        <section aria-labelledby="questions-title" className="section-rule" style={{ maxWidth: 760 }}>
-          <h2 id="questions-title" className="display" style={{ fontSize: "2rem", lineHeight: 1.1 }}>
-            Questions you want to practice
-          </h2>
-          <p className="muted" style={{ margin: "6px 0 20px" }}>
-            Your interviewer will ask each one in their own words, along with questions about your resume. Add how you&apos;d answer any of them, and your results will compare it with what you actually said. Up to {MAX_QUESTIONS}. Optional.
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              addQuestion(draft);
-            }}
-            style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
-          >
-            <label htmlFor="new-question" className="visually-hidden">
-              Question to practice
-            </label>
-            <input
-              id="new-question"
-              className="input"
-              value={draft}
-              maxLength={200}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setQuestionError(null);
-              }}
-              placeholder="Tell me about a time you disagreed with your manager."
-              style={{ flex: "1 1 320px" }}
-            />
-            <button type="submit" className="btn btn-dark btn-sm" disabled={!draft.trim()}>
-              Add question
-            </button>
-          </form>
-          {questionError && (
-            <p className="error" role="alert" style={{ marginTop: 10 }}>
-              {questionError}
+        {mode === "resume" ? (
+          <section aria-labelledby="questions-title" className="section-rule" style={{ maxWidth: 760 }}>
+            <h2 id="questions-title" className="display" style={{ fontSize: "2rem", lineHeight: 1.1 }}>
+              Questions you want to practice
+            </h2>
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+              &ldquo;Just my resume&rdquo; sticks to what your resume says. To add your own questions, pick &ldquo;Resume + your questions&rdquo; or &ldquo;General questions&rdquo; above.
             </p>
-          )}
-          {questions.length > 0 && (
-            <ul aria-label="Your questions" style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
-              {questions.map((q, i) => (
-                <li key={q} className="card" style={{ padding: "8px 8px 8px 14px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ flex: "1 1 auto", minWidth: 0, overflowWrap: "anywhere" }}>{q}</span>
-                    {!openPlans.has(q) && (
+          </section>
+        ) : (
+        <section aria-labelledby="questions-title" className="section-rule" style={{ maxWidth: 760 }}>
+            <h2 id="questions-title" className="display" style={{ fontSize: "2rem", lineHeight: 1.1 }}>
+              Questions you want to practice
+            </h2>
+            <p className="muted" style={{ margin: "6px 0 20px" }}>
+              Your interviewer will ask each one in their own words, along with {mode === "general" ? "a few classic behavioral questions" : "questions about your resume"}. Add how you&apos;d answer any of them, and your results will compare it with what you actually said. Up to {MAX_QUESTIONS}. Optional.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                addQuestion(draft);
+              }}
+              style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
+            >
+              <label htmlFor="new-question" className="visually-hidden">
+                Question to practice
+              </label>
+              <input
+                id="new-question"
+                className="input"
+                value={draft}
+                maxLength={200}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  setQuestionError(null);
+                }}
+                placeholder="Tell me about a time you disagreed with your manager."
+                style={{ flex: "1 1 320px" }}
+              />
+              <button type="submit" className="btn btn-dark btn-sm" disabled={!draft.trim()}>
+                Add question
+              </button>
+            </form>
+            {questionError && (
+              <p className="error" role="alert" style={{ marginTop: 10 }}>
+                {questionError}
+              </p>
+            )}
+            {questions.length > 0 && (
+              <ul aria-label="Your questions" style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+                {questions.map((q, i) => (
+                  <li key={q} className="card" style={{ padding: "8px 8px 8px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ flex: "1 1 auto", minWidth: 0, overflowWrap: "anywhere" }}>{q}</span>
+                      {!openPlans.has(q) && (
+                        <button
+                          type="button"
+                          className="chip-btn"
+                          onClick={() => setOpenPlans((o) => new Set(o).add(q))}
+                          aria-label={`${plans[q] ? "Edit" : "Add"} how you'd answer: ${q}`}
+                        >
+                          {plans[q] ? "Edit your answer" : "+ How you'd answer"}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className="chip-btn"
-                        onClick={() => setOpenPlans((o) => new Set(o).add(q))}
-                        aria-label={`${plans[q] ? "Edit" : "Add"} how you'd answer: ${q}`}
+                        onClick={() => removeQuestion(i)}
+                        aria-label={`Remove question: ${q}`}
+                        className="icon-btn"
                       >
-                        {plans[q] ? "Edit your answer" : "+ How you'd answer"}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(i)}
-                      aria-label={`Remove question: ${q}`}
-                      className="icon-btn"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-                        <path d="M6 6l12 12M18 6L6 18" />
-                      </svg>
-                    </button>
-                  </div>
-                  {openPlans.has(q) ? (
-                    <div style={{ margin: "10px 6px 6px 0" }}>
-                      <label htmlFor={`plan-${i}`} className="subtle" style={{ display: "block", marginBottom: 6 }}>
-                        How you&apos;d answer. Bullet points are fine. The interviewer won&apos;t see this; your results will compare it with what you actually said.
-                      </label>
-                      <textarea
-                        id={`plan-${i}`}
-                        className="textarea"
-                        rows={4}
-                        maxLength={1500}
-                        value={plans[q] ?? ""}
-                        onChange={(e) => setPlans((p) => ({ ...p, [q]: e.target.value }))}
-                        placeholder="e.g. Checkout took 3.1 s on mobile. I profiled it, deferred two payment scripts, lazy-loaded the card form. Down to 1.8 s."
-                      />
-                      <button
-                        type="button"
-                        className="chip-btn"
-                        style={{ marginTop: 8 }}
-                        onClick={() =>
-                          setOpenPlans((o) => {
-                            const n = new Set(o);
-                            n.delete(q);
-                            return n;
-                          })
-                        }
-                      >
-                        Done
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                          <path d="M6 6l12 12M18 6L6 18" />
+                        </svg>
                       </button>
                     </div>
-                  ) : (
-                    plans[q]?.trim() && (
-                      <p className="subtle" style={{ margin: "6px 6px 2px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        Your answer: {plans[q]}
-                      </p>
-                    )
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="subtle" aria-live="polite" style={{ margin: "10px 0 0" }}>
-            {questions.length} of {MAX_QUESTIONS} added
-          </p>
-          {questions.length < MAX_QUESTIONS && (
-            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <span className="subtle">Suggestions:</span>
-              {SUGGESTED_QUESTIONS.filter((sq) => !questions.includes(sq)).map((sq) => (
-                <button
-                  key={sq}
-                  type="button"
-                  onClick={() => addQuestion(sq)}
-                  className="chip-btn"
-                >
-                  + {sq}
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
+                    {openPlans.has(q) ? (
+                      <div style={{ margin: "10px 6px 6px 0" }}>
+                        <label htmlFor={`plan-${i}`} className="subtle" style={{ display: "block", marginBottom: 6 }}>
+                          How you&apos;d answer. Bullet points are fine. The interviewer won&apos;t see this; your results will compare it with what you actually said.
+                        </label>
+                        <textarea
+                          id={`plan-${i}`}
+                          className="textarea"
+                          rows={4}
+                          maxLength={1500}
+                          value={plans[q] ?? ""}
+                          onChange={(e) => setPlans((p) => ({ ...p, [q]: e.target.value }))}
+                          placeholder="e.g. Checkout took 3.1 s on mobile. I profiled it, deferred two payment scripts, lazy-loaded the card form. Down to 1.8 s."
+                        />
+                        <button
+                          type="button"
+                          className="chip-btn"
+                          style={{ marginTop: 8 }}
+                          onClick={() =>
+                            setOpenPlans((o) => {
+                              const n = new Set(o);
+                              n.delete(q);
+                              return n;
+                            })
+                          }
+                        >
+                          Done
+                        </button>
+                      </div>
+                    ) : (
+                      plans[q]?.trim() && (
+                        <p className="subtle" style={{ margin: "6px 6px 2px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          Your answer: {plans[q]}
+                        </p>
+                      )
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="subtle" aria-live="polite" style={{ margin: "10px 0 0" }}>
+              {questions.length} of {MAX_QUESTIONS} added
+            </p>
+            {questions.length < MAX_QUESTIONS && (
+              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                <span className="subtle">Suggestions:</span>
+                {SUGGESTED_QUESTIONS.filter((sq) => !questions.includes(sq)).map((sq) => (
+                  <button
+                    key={sq}
+                    type="button"
+                    onClick={() => addQuestion(sq)}
+                    className="chip-btn"
+                  >
+                    + {sq}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="section-rule" style={{ maxWidth: 760 }}>
           <label htmlFor="details" className="display" style={{ display: "block", fontSize: "2rem", lineHeight: 1.1 }}>
@@ -424,14 +454,18 @@ export default function SetupPage() {
                 <dd>{reading ? "Reading..." : failed ? "Needs a new file" : "Ready"}</dd>
               </div>
               <div>
+                <dt>Practicing</dt>
+                <dd>{INTERVIEW_MODES.find((m) => m.id === mode)?.label}</dd>
+              </div>
+              <div>
                 <dt>Level</dt>
                 <dd>{chosen.level}{chosen.pro && BETA ? ", free in beta" : ""}</dd>
               </div>
               <div>
                 <dt>Your questions</dt>
                 <dd>
-                  {questions.length ? `${questions.length} of ${MAX_QUESTIONS}` : "None"}
-                  {questions.some((q) => plans[q]?.trim()) ? `, ${questions.filter((q) => plans[q]?.trim()).length} planned` : ""}
+                  {mode === "resume" ? "Not in this mode" : questions.length ? `${questions.length} of ${MAX_QUESTIONS}` : "None"}
+                  {mode !== "resume" && questions.some((q) => plans[q]?.trim()) ? `, ${questions.filter((q) => plans[q]?.trim()).length} planned` : ""}
                 </dd>
               </div>
               <div>

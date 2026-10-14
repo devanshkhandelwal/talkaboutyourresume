@@ -128,7 +128,10 @@ export default function FeedbackPage() {
         transcript: s.transcript,
         profile: store.getProfile(),
         // Planned answers from setup, for the planned-vs-said comparison (not for 2-minute retries).
-        plans: s.retryTopic ? [] : Object.entries(store.getSetup()?.plans ?? {}).map(([question, plan]) => ({ question, plan })),
+        plans:
+          s.retryTopic || store.getSetup()?.mode === "resume"
+            ? []
+            : Object.entries(store.getSetup()?.plans ?? {}).map(([question, plan]) => ({ question, plan })),
       }),
     })
       .then(async (res) => {

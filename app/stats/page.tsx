@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { timingSafeEqual } from "node:crypto";
 import { SiteHeader } from "@/components/Chrome";
 import { INTERVIEWERS } from "@/lib/interviewers";
+import { INTERVIEW_MODES } from "@/lib/prompts";
 import { EVENTS, STATS_TIME_ZONE, readEvents, readUploads, redisEnabled, type UploadRecord } from "@/lib/limits";
 
 // Private usage numbers: /stats?key=<STATS_KEY>. Anything else is a 404, and
@@ -112,6 +113,13 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
             <StatTable
               first="Interviewer"
               rows={INTERVIEWERS.map((i) => ({ label: i.name, today: sum(today, `interviewer:${i.id}`), week: sum(week, `interviewer:${i.id}`), month: sum(days, `interviewer:${i.id}`) })).sort((a, b) => b.month - a.month)}
+            />
+          </section>
+          <section aria-labelledby="modes-title" className="card" style={{ padding: 24 }}>
+            <h2 id="modes-title" style={{ margin: "0 0 12px", fontSize: "1.125rem", fontWeight: 600 }}>Interview modes picked</h2>
+            <StatTable
+              first="Mode"
+              rows={INTERVIEW_MODES.map((m) => ({ label: m.label, today: sum(today, `mode:${m.id}`), week: sum(week, `mode:${m.id}`), month: sum(days, `mode:${m.id}`) }))}
             />
           </section>
         </div>

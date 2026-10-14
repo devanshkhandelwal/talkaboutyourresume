@@ -5,6 +5,8 @@ import type { FeedbackReport, InterviewSession, ResumeProfile } from "./types";
 /** What the person chose on the setup screen. `questions` are ones they want to be asked. */
 export type SetupChoice = {
   interviewerId: string;
+  /** What the interview focuses on; missing on older setups, which means "mixed". */
+  mode?: import("./prompts").InterviewMode;
   focusNote: string;
   questions?: string[];
   /** Planned answers, keyed by question. Never sent to the interviewer; only used to compare afterwards. */

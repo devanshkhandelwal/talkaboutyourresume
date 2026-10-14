@@ -184,7 +184,7 @@ export default function InterviewPage() {
       const res = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, interviewerId, focusNote, questions, retryTopic }),
+        body: JSON.stringify({ profile, interviewerId, focusNote, questions, retryTopic, mode: store.getSetup()?.mode ?? "mixed" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't start the interview.");
