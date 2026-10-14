@@ -9,12 +9,11 @@ import { MicLevel } from "@/components/MicLevel";
 import { costLedger } from "@/lib/cost";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
-import { WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
+import { GOODBYE, WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
 import { store } from "@/lib/store";
 import { InterviewAgent, type AgentStatus } from "@/lib/voice/agent";
 import type { ResumeProfile, TranscriptLine } from "@/lib/types";
 
-const GOODBYE = /\b(good ?bye|take care|best of luck|good luck with|have a (great|good) (day|one|rest))\b/i;
 
 type Phase = "lobby" | "starting" | "live" | "ending";
 
