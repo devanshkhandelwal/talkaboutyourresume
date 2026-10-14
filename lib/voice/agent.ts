@@ -3,6 +3,7 @@
 import type { TranscriptLine } from "../types";
 import { recording } from "./recording";
 import { readLevel } from "./level";
+import { AGENT_URL } from "@/lib/agentSettings";
 
 export type AgentStatus =
   | "connecting"
@@ -21,7 +22,6 @@ export type AgentEvents = {
   onVoiceTime?: (ms: number) => void;
 };
 
-const AGENT_URL = "wss://agent.deepgram.com/v1/agent/converse";
 const OUTPUT_RATE = 24000;
 
 /**
@@ -39,6 +39,12 @@ export class InterviewAgent {
   private keepAlive: ReturnType<typeof setInterval> | null = null;
   private muted = false;
   private agentSpeaking = false;
+  private agentThinking = false;
+  /** The candidate has spoken since the interviewer last finished talking. */
+  private userSpokeSinceAgent = false;
+  /** A close waiting for a quiet moment (see closeAtNextPause). */
+  private pendingClose: { prompt: string; line: string } | null = null;
+  private lastClose: { prompt: string; line: string } | null = null;
   private ended = false;
   private openedAt: number | null = null;
   /** Deepgram's own explanation, if it sent one before closing. */
@@ -118,7 +124,9 @@ export class InterviewAgent {
     };
 
     this.node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
-      if (this.muted || ws.readyState !== WebSocket.OPEN) return;
+      // Keep sending while muted: the mic track is disabled, so this is silence, and
+      // Deepgram closes sessions that receive no audio for a while.
+      if (ws.readyState !== WebSocket.OPEN) return;
       ws.send(ev.data);
     };
   }
@@ -186,12 +194,15 @@ export class InterviewAgent {
         // Barge-in: the candidate talked over the interviewer, so stop playback.
         this.stopPlayback();
         this.agentSpeaking = false;
+        this.userSpokeSinceAgent = true;
         this.events.onStatus(this.muted ? "muted" : "listening");
         break;
       case "AgentThinking":
+        this.agentThinking = true;
         this.events.onStatus("thinking");
         break;
       case "AgentStartedSpeaking":
+        this.agentThinking = false;
         this.agentSpeaking = true;
         this.events.onStatus("speaking");
         break;
@@ -200,10 +211,18 @@ export class InterviewAgent {
         const wait = Math.max(0, (this.playhead - (this.ctx?.currentTime ?? 0)) * 1000);
         setTimeout(() => {
           this.agentSpeaking = false;
+          this.agentThinking = false;
+          this.userSpokeSinceAgent = false;
           if (!this.ended) this.events.onStatus(this.muted ? "muted" : "listening");
+          // The interviewer just finished talking: the natural moment to close.
+          if (this.pendingClose) this.flushClose();
         }, wait);
         break;
       }
+      case "InjectionRefused":
+        // Someone was talking; try the close again at the next pause.
+        if (this.lastClose && !this.pendingClose) this.pendingClose = this.lastClose;
+        break;
       case "Error":
         console.warn("[voice] Deepgram error", msg);
         this.serverError = msg.description || msg.code || null;
@@ -264,9 +283,33 @@ export class InterviewAgent {
     if (!this.agentSpeaking) this.events.onStatus(muted ? "muted" : "listening");
   }
 
-  /** Swap the system prompt mid-interview, e.g. to start wrapping up. */
-  updatePrompt(prompt: string) {
-    this.sendJson({ type: "UpdatePrompt", prompt });
+  /**
+   * Add instructions to the interviewer's prompt mid-interview, e.g. to start
+   * wrapping up. Deepgram's UpdatePrompt appends to the current prompt; it does
+   * not replace it, so pass only the new text.
+   */
+  addToPrompt(text: string) {
+    this.sendJson({ type: "UpdatePrompt", prompt: text });
+  }
+
+  /**
+   * Ends the questions at the next quiet moment: right after the interviewer
+   * finishes speaking, or now if nobody is talking. Adds `prompt` (closing rules)
+   * and has the interviewer say `line` word for word. The model alone ignores
+   * "wrap up" instructions, so the app decides when the interview closes.
+   */
+  closeAtNextPause(prompt: string, line: string) {
+    this.pendingClose = { prompt, line };
+    if (!this.agentSpeaking && !this.agentThinking && !this.userSpokeSinceAgent) this.flushClose();
+  }
+
+  private flushClose() {
+    const close = this.pendingClose;
+    if (!close || this.ended) return;
+    this.pendingClose = null;
+    this.lastClose = close;
+    this.addToPrompt(close.prompt);
+    this.say(close.line);
   }
 
   /** Have the interviewer say a specific line now. */

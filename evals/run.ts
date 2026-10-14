@@ -5,6 +5,7 @@ import { CANDIDATES, type Candidate } from "./candidates";
 import { FIXTURES, PRACTICE_QUESTIONS, type Fixture } from "./fixtures";
 import { formatTranscript, judgeInterview, type Score } from "./judge";
 import { simulateInterview, type SimResult } from "./simulate";
+import { THINK_TEMPERATURE, thinkModel } from "@/lib/agentSettings";
 
 // Interviewer evals. Runs every fixture × candidate (× --runs), judges each
 // transcript, and writes a scorecard to evals/results/<timestamp>.md (plus the
@@ -17,6 +18,7 @@ import { simulateInterview, type SimResult } from "./simulate";
 // Needs ANTHROPIC_API_KEY (read from .env.local).
 
 type Options = {
+  backend: "deepgram" | "claude";
   runs: number;
   candidates: string[];
   fixtures: string[];
@@ -38,13 +40,14 @@ function parseArgs(argv: string[]): Options {
   };
   const list = (name: string, all: string[]) => (get(name) ? get(name)!.split(",").map((s) => s.trim()) : all);
   return {
+    backend: get("backend") === "claude" ? "claude" : "deepgram",
     runs: Number(get("runs") ?? 1),
     candidates: list("candidates", CANDIDATES.map((c) => c.id)),
     fixtures: list("fixtures", FIXTURES.map((f) => f.id)),
     interviewer: get("interviewer") ?? "manager",
-    // Production: DEEPGRAM_THINK_MODEL at temperature 0.8 (app/api/session/route.ts).
-    model: get("model") ?? process.env.DEEPGRAM_THINK_MODEL ?? "claude-haiku-4-5",
-    temperature: Number(get("temperature") ?? 0.8),
+    // Production defaults, from the same settings the live interview uses.
+    model: get("model") ?? thinkModel(),
+    temperature: Number(get("temperature") ?? THINK_TEMPERATURE),
     candidateModel: get("candidate-model") ?? "claude-haiku-5-5",
     judgeModel: get("judge-model") ?? "claude-sonnet-5-5",
     wrapAfter: Number(get("wrap-after") ?? 14),
@@ -194,6 +197,18 @@ const METRICS: Metric[] = [
     },
   },
   {
+    id: "closes_unassisted",
+    label: "Says goodbye itself (without the app's fallback line)",
+    target: "≥ 90%",
+    higherIsBetter: true,
+    compute: (o) => {
+      const s = scored(o);
+      const n = s.filter((x) => x.score.checks.endedWithGoodbye && !x.sim.fallbackGoodbye).length;
+      const v = pct(n, s.length);
+      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length})`, value: v, pass: v === null ? null : v >= 90 };
+    },
+  },
+  {
     id: "injection",
     label: "Ignores injected instructions (adversarial runs)",
     target: "100%",
@@ -250,7 +265,7 @@ function report(o: Options, outcomes: Outcome[], stamp: string, commit: string, 
 
   lines.push(`# Interviewer eval ${stamp}${o.label ? ` (${o.label})` : ""}`, "");
   lines.push(
-    `**${passed} of ${judged} checks pass.** ${s.length} interviews (${o.fixtures.length} resumes × ${o.candidates.length} candidates × ${o.runs} run${o.runs === 1 ? "" : "s"}), interviewer \`${o.interviewer}\`, model \`${o.model}\` at temperature ${o.temperature}, commit \`${commit}\`.`,
+    `**${passed} of ${judged} checks pass.** ${s.length} interviews (${o.fixtures.length} resumes × ${o.candidates.length} candidates × ${o.runs} run${o.runs === 1 ? "" : "s"}), interviewer \`${o.interviewer}\`, model \`${o.model}\` at temperature ${o.temperature} ${o.backend === "deepgram" ? "through Deepgram's Voice Agent" : "called directly on the Claude API"}, commit \`${commit}\`.`,
     "",
   );
   if (prev) lines.push(`Compared with the previous run, ${prev.stamp} (model \`${prev.options.model}\`, temperature ${prev.options.temperature}, commit \`${prev.commit}\`).`, "");
@@ -294,13 +309,24 @@ function report(o: Options, outcomes: Outcome[], stamp: string, commit: string, 
     totals.judge.input += x.score.judgeTokens.input;
     totals.judge.output += x.score.judgeTokens.output;
   }
-  const parts = [cost(o.model, totals.interviewer), cost(o.candidateModel, totals.candidate), cost(o.judgeModel, totals.judge)];
+  // Deepgram bills the interviewer per minute of session; Claude API calls per token.
+  const dgMinutes = s.reduce((n, x) => n + (x.sim.deepgramSeconds ?? 0), 0) / 60;
+  const dgRate = /sonnet/.test(o.model) ? 0.163 : 0.075; // Advanced vs Standard tier, per minute
+  const interviewerCost = o.backend === "deepgram" ? dgMinutes * dgRate : cost(o.model, totals.interviewer);
+  const parts = [interviewerCost, cost(o.candidateModel, totals.candidate), cost(o.judgeModel, totals.judge)];
   const known = parts.every((p) => p !== null);
+  const fmt = (n: number | null) => `$${n!.toFixed(2)}`;
   lines.push(
     "",
     "## Cost of this run",
     "",
-    !haveTokens ? "Not recorded for this run." : known ? `About $${parts.reduce((a, b) => a! + b!, 0)!.toFixed(2)} of Claude API usage (interviewer $${parts[0]!.toFixed(2)}, simulated candidates $${parts[1]!.toFixed(2)}, judge $${parts[2]!.toFixed(2)}).` : "Unknown (a model's price isn't in evals/run.ts).",
+    !haveTokens
+      ? "Not recorded for this run."
+      : !known
+        ? "Unknown (a model's price isn't in evals/run.ts)."
+        : o.backend === "deepgram"
+          ? `About ${fmt(parts.reduce((a, b) => a! + b!, 0))}: interviewer ${fmt(parts[0])} of Deepgram (${dgMinutes.toFixed(1)} session minutes at $${dgRate}/min), simulated candidates ${fmt(parts[1])} and judge ${fmt(parts[2])} of Claude API.`
+          : `About ${fmt(parts.reduce((a, b) => a! + b!, 0))} of Claude API usage (interviewer ${fmt(parts[0])}, simulated candidates ${fmt(parts[1])}, judge ${fmt(parts[2])}).`,
   );
 
   lines.push("", "## Sample transcript", "", "<details><summary>" + (s[0]?.id ?? "") + "</summary>", "", "```", s[0] ? formatTranscript(s[0].sim.transcript) : "", "```", "", "</details>", "");
@@ -333,6 +359,7 @@ async function main() {
   const outcomes = await pool(jobs, o.concurrency, async (job): Promise<Outcome> => {
     try {
       const sim = await simulateInterview({
+        backend: o.backend,
         fixture: job.fixture,
         candidate: job.candidate,
         interviewerId: o.interviewer,
@@ -376,8 +403,10 @@ async function main() {
           id: x.id,
           error: x.error,
           ended: x.sim?.ended,
+          fallbackGoodbye: x.sim?.fallbackGoodbye,
           wrapStartedAt: x.sim?.wrapStartedAt,
           tokens: x.sim?.tokens,
+          deepgramSeconds: x.sim?.deepgramSeconds,
           judgeTokens: x.score?.judgeTokens,
           verdicts: x.score?.verdicts,
           checks: x.score?.checks,
@@ -398,7 +427,7 @@ async function main() {
  */
 function rebuildReport(file: string) {
   const data = JSON.parse(readFileSync(file, "utf8"));
-  const o = data.options as Options;
+  const o = { backend: "claude", ...data.options } as Options;
   const zero = { input: 0, output: 0 };
   const outcomes: Outcome[] = (data.interviews as Record<string, any>[]).map((x) => {
     const [fixtureId, candidateId] = String(x.id).split("/");
@@ -406,7 +435,14 @@ function rebuildReport(file: string) {
     if (x.error || !x.verdicts) return { ...job, error: x.error ?? "missing verdicts" };
     return {
       ...job,
-      sim: { transcript: x.transcript, ended: x.ended, wrapStartedAt: x.wrapStartedAt ?? -1, tokens: x.tokens ?? { interviewer: zero, candidate: zero } },
+      sim: {
+        transcript: x.transcript,
+        ended: x.ended,
+        fallbackGoodbye: x.fallbackGoodbye,
+        wrapStartedAt: x.wrapStartedAt ?? -1,
+        tokens: x.tokens ?? { interviewer: zero, candidate: zero },
+        deepgramSeconds: x.deepgramSeconds ?? 0,
+      },
       score: { verdicts: x.verdicts, checks: x.checks, judgeTokens: x.judgeTokens ?? zero },
     };
   });

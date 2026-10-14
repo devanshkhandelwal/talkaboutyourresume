@@ -9,7 +9,7 @@ import { MicLevel } from "@/components/MicLevel";
 import { costLedger } from "@/lib/cost";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
-import { GOODBYE, WRAP_UP_PROMPT_SUFFIX } from "@/lib/prompts";
+import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE } from "@/lib/prompts";
 import { store } from "@/lib/store";
 import { InterviewAgent, type AgentStatus } from "@/lib/voice/agent";
 import type { ResumeProfile, TranscriptLine } from "@/lib/types";
@@ -46,6 +46,9 @@ export default function InterviewPage() {
   const startedAt = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const wrapping = useRef(false);
+  /** Interviewer replies since the closing line, or null before it's been said. */
+  const repliesAfterClose = useRef<number | null>(null);
+  const saidGoodbye = useRef(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStream = useRef<MediaStream | null>(null);
   const micCheckRef = useRef<MicCheck | null>(null);
@@ -191,8 +194,15 @@ export default function InterviewPage() {
         onLine: (line) => {
           linesRef.current = [...linesRef.current, line];
           setLines(linesRef.current);
-          if (wrapping.current && line.role === "assistant" && GOODBYE.test(line.content)) {
+          if (!wrapping.current || line.role !== "assistant" || saidGoodbye.current) return;
+          if (GOODBYE.test(line.content)) {
+            saidGoodbye.current = true;
             timers.current.push(setTimeout(() => finishRef.current(), 5000));
+          } else if (line.content === CLOSING_LINE) {
+            repliesAfterClose.current = 0;
+          } else if (repliesAfterClose.current !== null && ++repliesAfterClose.current >= 2) {
+            // Still no goodbye two replies after asking for their questions: say it for them.
+            agentRef.current?.say(GOODBYE_LINE);
           }
         },
         onError: (msg) => setError(msg),
@@ -205,11 +215,11 @@ export default function InterviewPage() {
       setPhase("live");
 
       const maxMs = Number(data.maxMinutes) * 60_000;
-      const basePrompt: string = data.settings.agent.think.prompt;
       timers.current.push(
         setTimeout(() => {
           wrapping.current = true;
-          agent.updatePrompt(basePrompt + WRAP_UP_PROMPT_SUFFIX);
+          // The app, not the model, decides when to close (see CLOSING_LINE in lib/prompts.ts).
+          agent.closeAtNextPause(CLOSING_PROMPT, CLOSING_LINE);
         }, Math.max(30_000, maxMs - 2 * 60_000)),
         setTimeout(() => finishRef.current(), maxMs),
       );
