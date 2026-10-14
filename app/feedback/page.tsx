@@ -13,7 +13,7 @@ import { store } from "@/lib/store";
 import { recording } from "@/lib/voice/recording";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { CostRows } from "@/components/LiveCost";
-import { FillerSummary, Highlighted } from "@/components/FillerWords";
+import { Highlighted } from "@/components/FillerWords";
 import { ResumeHeatmap } from "@/components/ResumeHeatmap";
 import { ScheduleNext } from "@/components/ScheduleNext";
 import { ShareResult } from "@/components/ShareResult";
@@ -345,9 +345,7 @@ export default function FeedbackPage() {
           </>
         )}
 
-        {!tooShort && <FillerSummary report={fillers} transcript={session.transcript} />}
-
-        {!tooShort && <StatsForNerds stats={computeNerdStats(session)} />}
+        {!tooShort && <StatsForNerds stats={computeNerdStats(session)} fillers={fillers} transcript={session.transcript} />}
 
         <details style={{ marginTop: 20 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>Read the full transcript</summary>
