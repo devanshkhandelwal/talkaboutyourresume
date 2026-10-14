@@ -20,6 +20,10 @@ It reads `ANTHROPIC_API_KEY` and `DEEPGRAM_API_KEY` from `.env.local`. A 21-inte
 - A single user message over about 1,000 characters (~150 words) is dropped and the model gets an empty request ("Failed to think"), regardless of prompt or model. Simulated answers are capped at 120 words.
 - Sessions that receive no audio are closed, so the eval streams silence (and the app now keeps sending silence while muted).
 
+## Turn-taking
+
+`npm run eval:pauses` speaks a real answer with a thinking pause mid-sentence into a Deepgram session and reports whether the interviewer cut in, for each Flux `eot_threshold` (`--eot 0.8,0.9 --pauses 2500,4000`). It uses only Deepgram, about a cent per trial. Typed eval interviews can't test this, since injected text skips speech recognition.
+
 ## What it checks
 
 | Check | Target |

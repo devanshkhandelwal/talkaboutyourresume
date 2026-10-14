@@ -15,6 +15,12 @@ export type Interviewer = {
   greetings: string[];
   /** Whether the candidate may ask to redo an answer */
   allowsRedo: boolean;
+  /**
+   * How sure the interviewer must be that you've finished before replying
+   * (Deepgram Flux eot_threshold, 0.5-1.0). Higher waits through longer thinking
+   * pauses but replies a beat later. Defaults to LISTEN.eotThreshold (0.9).
+   */
+  patience?: number;
 };
 
 export const INTERVIEWERS: Interviewer[] = [
@@ -70,6 +76,8 @@ export const INTERVIEWERS: Interviewer[] = [
     voice: "aura-2-mars-en",
     speed: 0.92,
     allowsRedo: false,
+    // Lets silence sit: replies ~2.6 s after you finish (vs ~1.7 s at the default).
+    patience: 0.95,
     persona: `You are reserved and hard to read. You use very few words.
 - Keep every turn short, often under ten words. "Go on." "And then?" "Why?" are typical.
 - Give almost no feedback or reactions. Do not say "great" or "interesting".
@@ -86,6 +94,8 @@ export const INTERVIEWERS: Interviewer[] = [
     voice: "aura-2-atlas-en",
     speed: 1.2,
     allowsRedo: false,
+    // Short on time: takes the turn fast (~0.9 s), so 2.5 s thinking pauses get cut in on.
+    patience: 0.75,
     persona: `You are friendly but short on time and you show it.
 - Ask for the short version. "Quick version, what was the result?"
 - If an answer runs long or wanders, politely cut in and redirect to the outcome.
