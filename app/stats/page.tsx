@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { timingSafeEqual } from "node:crypto";
 import { SiteHeader } from "@/components/Chrome";
 import { INTERVIEWERS } from "@/lib/interviewers";
-import { EVENTS, readEvents, readUploads, redisEnabled, type UploadRecord } from "@/lib/limits";
+import { EVENTS, STATS_TIME_ZONE, readEvents, readUploads, redisEnabled, type UploadRecord } from "@/lib/limits";
 
 // Private usage numbers: /stats?key=<STATS_KEY>. Anything else is a 404, and
 // the page is a 404 everywhere until STATS_KEY is set.
@@ -67,7 +67,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       <SiteHeader />
       <main className="wrap" style={{ maxWidth: "calc(1080px + 2 * var(--gutter))", paddingTop: 24, paddingBottom: 96 }}>
         <h1 className="display h2">Stats</h1>
-        <p className="muted" style={{ margin: "8px 0 32px" }}>Anonymous counts, by UTC day. Page views and visitors are in Vercel Analytics.</p>
+        <p className="muted" style={{ margin: "8px 0 32px" }}>Anonymous counts, by day in Eastern Time. Page views and visitors are in Vercel Analytics.</p>
 
         <section aria-labelledby="funnel-title" className="card" style={{ padding: 24 }}>
           <h2 id="funnel-title" style={{ margin: "0 0 16px", fontSize: "1.125rem", fontWeight: 600 }}>Last 7 days, upload to feedback</h2>
@@ -203,7 +203,7 @@ function Uploads({ uploads }: { uploads: UploadRecord[] }) {
             <tbody>
               {uploads.slice(0, 10).map((u, i) => (
                 <tr key={i}>
-                  <td style={{ ...cell, textAlign: "left" }}>{u.at.slice(0, 16).replace("T", " ")}</td>
+                  <td style={{ ...cell, textAlign: "left" }}>{new Date(u.at).toLocaleString("en-US", { timeZone: STATS_TIME_ZONE, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
                   <td style={cell}>{u.type.toUpperCase()}</td>
                   <td style={{ ...cell, whiteSpace: "nowrap", paddingLeft: 8 }}>{kb(u.bytes)}</td>
                   <td style={cell}>{OUTCOME[u.outcome] ?? u.outcome}</td>
@@ -211,7 +211,7 @@ function Uploads({ uploads }: { uploads: UploadRecord[] }) {
               ))}
             </tbody>
           </table>
-          <p className="subtle" style={{ margin: "8px 0 0" }}>Times are UTC.</p>
+          <p className="subtle" style={{ margin: "8px 0 0" }}>Times are Eastern.</p>
         </>
       )}
     </section>
