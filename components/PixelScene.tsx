@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { dayKey, getPracticedDays } from "@/lib/practice";
 
 // A minimal 1-bit pixel-art room, drawn at low resolution and scaled up crisply:
-// a desk with a coffee mug, a pendant lamp, a window and a wall calendar with
-// the practiced days crossed off. Everything is black or white; the only color
-// is the laptop's video call. Dark mode inverts the room.
+// a desk with a coffee mug, a pendant lamp, a window and a wall calendar for
+// this month with the practiced days crossed off. Everything is black or white;
+// the only color is the laptop's video call. Dark mode inverts the room.
 // The room is laid out on a 192 x 108 grid and placed on a larger 240 x 135 canvas
 // (offset by OX, OY), so pixels stay fine and there's open wall around it.
 const W = 240;
@@ -83,7 +84,35 @@ function drawPerson(px: Px, ox: number, oy: number) {
   seg(13, 8, 11, "m");
 }
 
-function draw(ctx: CanvasRenderingContext2D, dark: boolean) {
+type Cal = {
+  /** Weekday of the 1st (0 = Sunday) and the number of days this month. */
+  first: number;
+  days: number;
+  today: number;
+  /** Days of the month to cross out, in the order they get drawn. */
+  crossed: number[];
+  /** How many of `crossed` are drawn so far (they animate in). */
+  shown: number;
+  /** Whether today's square is lit (it blinks a few times, then stays). */
+  todayOn: boolean;
+};
+
+/** This month's layout and the days to cross out: your practiced days, else the days gone by. */
+function monthCal(now: Date): Cal {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const prefix = dayKey(now).slice(0, 8);
+  const practiced = getPracticedDays()
+    .filter((d) => d.startsWith(prefix))
+    .map((d) => Number(d.slice(8)))
+    .filter((d) => d >= 1 && d <= 31)
+    .sort((a, b) => a - b);
+  const today = now.getDate();
+  const crossed = practiced.length ? practiced : Array.from({ length: today - 1 }, (_, i) => i + 1);
+  return { first: new Date(y, m, 1).getDay(), days: new Date(y, m + 1, 0).getDate(), today, crossed, shown: crossed.length, todayOn: true };
+}
+
+function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal) {
   const I = dark ? "#ffffff" : "#000000"; // ink
   const P = dark ? "#000000" : "#ffffff"; // paper
   const px: Px = (x, y, c) => {
@@ -127,20 +156,24 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean) {
   for (let y = 0; y < 6; y++) rect(124 - y, 11 + y, 9 + y * 2, 1, I);
   rect(126, 17, 5, 1, P);
 
-  // A wall calendar on a nail: a solid header with two rings, then a month of
-  // days, the ones already practiced crossed out.
+  // A wall calendar on a nail: a solid header with two rings, then this month's
+  // days. Practiced days are crossed out (or, before any practice, the days gone
+  // by), and today is a solid square. It grows a row for six-week months.
   const cx = 78;
   const cy = 18;
+  const rows = Math.ceil((cal.first + cal.days) / 7);
   rect(cx + 15, cy - 2, 2, 2, I);
-  box(cx, cy, 32, 25);
+  box(cx, cy, 32, 9 + rows * 4);
   rect(cx, cy, 32, 5, I);
   rect(cx + 7, cy + 2, 2, 1, P);
   rect(cx + 23, cy + 2, 2, 1, P);
-  for (let day = 1; day <= 26; day++) {
-    const slot = day + 1; // the month starts on a Tuesday
+  const shown = new Set(cal.crossed.slice(0, cal.shown));
+  for (let day = 1; day <= cal.days; day++) {
+    const slot = cal.first + day - 1;
     const x = cx + 3 + (slot % 7) * 4;
     const y = cy + 7 + Math.floor(slot / 7) * 4;
-    if (day <= 9) {
+    if (day === cal.today && cal.todayOn && !shown.has(day)) rect(x, y, 3, 3, I);
+    else if (shown.has(day)) {
       px(x, y, I);
       px(x + 2, y, I);
       px(x + 1, y + 1, I);
@@ -196,12 +229,28 @@ export function PixelScene({ position = "100% 50%" }: { position?: string }) {
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    const render = () => draw(ctx, document.documentElement.dataset.theme === "dark");
+    const cal = monthCal(new Date());
+    const render = () => draw(ctx, document.documentElement.dataset.theme === "dark", cal);
+    // The calendar's X's are drawn in one at a time, then today's square blinks
+    // three times and stays. Reduced motion gets the finished calendar.
+    const timers: number[] = [];
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const step = Math.min(90, 900 / Math.max(1, cal.crossed.length));
+      cal.shown = 0;
+      cal.todayOn = false;
+      for (let i = 1; i <= cal.crossed.length; i++) timers.push(window.setTimeout(() => ((cal.shown = i), render()), 400 + i * step));
+      const end = 400 + cal.crossed.length * step;
+      for (let i = 1; i <= 6; i++) timers.push(window.setTimeout(() => ((cal.todayOn = i % 2 === 1), render()), end + i * 260));
+      timers.push(window.setTimeout(() => ((cal.todayOn = true), render()), end + 7 * 260));
+    }
     render();
     // Redraw inverted when the theme toggle switches to dark.
     const mo = new MutationObserver(render);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return () => mo.disconnect();
+    return () => {
+      mo.disconnect();
+      timers.forEach(clearTimeout);
+    };
   }, []);
 
   return (
