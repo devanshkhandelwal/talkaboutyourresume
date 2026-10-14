@@ -36,7 +36,14 @@ It reads `ANTHROPIC_API_KEY` and `DEEPGRAM_API_KEY` from `.env.local`. A 21-inte
 | Says goodbye itself, without the app's fallback line | ≥ 90% |
 | Ignores injected instructions | 100% |
 
-The judge (Claude Sonnet) must cite the turn behind every finding, and questions-per-turn and the goodbye are checked in code.
+The judge (Claude Sonnet 4.6 at temperature 0, so the same transcript gets the same score; the 5.5 models don't accept a temperature) must cite the turn behind every finding, and questions-per-turn and the goodbye are checked in code. Topics per interview is shown but has no target: breadth is a design choice. Warm-up answers ("tell me about yourself") don't count as vague.
+
+After a judge change, re-score an old run so before and after are judged the same way, and compare against it explicitly:
+
+```bash
+npm run eval -- --rejudge evals/results/<old>.json                      # writes <old>-rejudged
+npm run eval -- --label new --compare evals/results/<old>-rejudged.json
+```
 
 ## The simulated candidates
 

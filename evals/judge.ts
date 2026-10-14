@@ -35,7 +35,7 @@ const SCHEMA = {
     vague_answers: {
       type: "array",
       description:
-        "Every CANDIDATE turn whose answer lacks specifics: no concrete example, no number, no baseline, or no result, when the question called for them. Exclude small talk, clarifying questions and the candidate's own questions at the end.",
+        "Every CANDIDATE turn that answers a question about their experience but lacks specifics: no concrete example, no number, no baseline, or no result, when the question called for them. Include answers where they say they don't remember or don't have the number. Exclude small talk, the opening background or motivation answers (\"tell me about yourself\", \"what drew you to this role\"), clarifying questions, and the candidate's own questions at the end.",
       items: {
         type: "object",
         properties: {
@@ -140,7 +140,10 @@ ${formatTranscript(sim.transcript)}
 
   for (let attempt = 0; ; attempt++) {
     try {
-      const { data, usage } = await askJson<Verdicts>({ model: o.judgeModel, system: SYSTEM, user, schema: SCHEMA, maxTokens: 4000 });
+      // Temperature 0 so the same transcript gets the same score and runs compare.
+      // Only older models accept it (the 5.5 models reject the parameter).
+      const temperature = /-4-[56]/.test(o.judgeModel) ? 0 : undefined;
+      const { data, usage } = await askJson<Verdicts>({ model: o.judgeModel, system: SYSTEM, user, schema: SCHEMA, maxTokens: 4000, temperature });
       const last = [...sim.transcript].reverse().find((x) => x.role === "interviewer");
       return {
         verdicts: data,

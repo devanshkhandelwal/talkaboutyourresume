@@ -49,7 +49,8 @@ function parseArgs(argv: string[]): Options {
     model: get("model") ?? thinkModel(),
     temperature: Number(get("temperature") ?? THINK_TEMPERATURE),
     candidateModel: get("candidate-model") ?? "claude-haiku-5-5",
-    judgeModel: get("judge-model") ?? "claude-sonnet-5-5",
+    // Sonnet 4.6 because it still takes temperature 0, for repeatable scores.
+    judgeModel: get("judge-model") ?? "claude-sonnet-4-6",
     wrapAfter: Number(get("wrap-after") ?? 14),
     maxTurns: Number(get("max-turns") ?? 20),
     concurrency: Number(get("concurrency") ?? 4),
@@ -173,15 +174,16 @@ const METRICS: Metric[] = [
     },
   },
   {
+    // Informational: breadth is a design choice, not something to push up.
     id: "topic_coverage",
-    label: "Resume topics discussed per interview",
-    target: "≥ 3 of 5",
+    label: "Resume topics discussed per interview (informational)",
+    target: "–",
     higherIsBetter: true,
     compute: (o) => {
       const s = scored(o);
       if (!s.length) return { text: "n/a", value: null, pass: null };
       const v = Math.round((s.reduce((n, x) => n + new Set(x.score.verdicts.topics_discussed).size, 0) / s.length) * 10) / 10;
-      return { text: `${v} on average`, value: v, pass: v >= 3 };
+      return { text: `${v} on average`, value: v, pass: null };
     },
   },
   {
@@ -229,6 +231,7 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "claude-haiku-5-5": { input: 0.1, output: 0.5 },
   "claude-sonnet-5-5": { input: 2, output: 10 },
   "claude-sonnet-5": { input: 3, output: 15 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
 };
 const cost = (model: string, t: { input: number; output: number }) => {
   const p = PRICES[model];
@@ -240,6 +243,12 @@ const cost = (model: string, t: { input: number; output: number }) => {
 type SavedRun = { stamp: string; options: Options; commit: string; metrics: Record<string, number | null> };
 
 function previousRun(dir: string, stamp: string): SavedRun | null {
+  // --compare <run>.json picks the baseline explicitly (e.g. a re-judged run).
+  const i = process.argv.indexOf("--compare");
+  if (i >= 0) {
+    const data = JSON.parse(readFileSync(process.argv[i + 1], "utf8"));
+    return { stamp: data.stamp, options: data.options, commit: data.commit, metrics: data.metrics };
+  }
   const files = readdirSync(dir)
     .filter((f) => f.endsWith(".json") && !f.startsWith(stamp) && f < stamp)
     .sort();
@@ -348,6 +357,8 @@ async function main() {
   const argv = process.argv.slice(2);
   const rebuild = argv.indexOf("--report");
   if (rebuild >= 0) return rebuildReport(argv[rebuild + 1]);
+  const rejudge = argv.indexOf("--rejudge");
+  if (rejudge >= 0) return rejudgeRun(argv[rejudge + 1]);
   const o = parseArgs(argv);
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env.local).");
   const fixtures = FIXTURES.filter((f) => o.fixtures.includes(f.id));
@@ -419,6 +430,54 @@ async function main() {
   );
   console.log(markdown.split("\n## By candidate")[0]);
   console.error(`\nFull report: evals/results/${name}.md`);
+}
+
+/**
+ * Re-scores a saved run's transcripts with the current judge (no new interviews),
+ * written as <run>-rejudged.md/.json. For judge changes, so old and new runs are
+ * scored the same way. Usage: npm run eval -- --rejudge evals/results/<name>.json
+ */
+async function rejudgeRun(file: string) {
+  const data = JSON.parse(readFileSync(file, "utf8"));
+  const o = { ...data.options, ...parseArgs(process.argv.slice(2).filter((a) => a !== "--rejudge" && a !== file)) } as Options;
+  Object.assign(o, {
+    backend: data.options.backend ?? "claude",
+    model: data.options.model,
+    temperature: data.options.temperature,
+    runs: data.options.runs,
+    judgeModel: parseArgs([]).judgeModel,
+    label: `${data.options.label}-rejudged`,
+  });
+  const zero = { input: 0, output: 0 };
+  const items = (data.interviews as Record<string, any>[]).filter((x) => x.transcript && !x.error);
+  console.error(`Re-judging ${items.length} transcripts from ${data.stamp}...`);
+  const outcomes = await pool(items, o.concurrency, async (x): Promise<Outcome> => {
+    const [fixtureId, candidateId] = String(x.id).split("/");
+    const job = { id: x.id, fixture: FIXTURES.find((f) => f.id === fixtureId)!, candidate: CANDIDATES.find((c) => c.id === candidateId)! };
+    const sim: SimResult = {
+      transcript: x.transcript,
+      ended: x.ended,
+      fallbackGoodbye: x.fallbackGoodbye,
+      wrapStartedAt: x.wrapStartedAt ?? -1,
+      tokens: x.tokens ?? { interviewer: zero, candidate: zero },
+      deepgramSeconds: x.deepgramSeconds ?? 0,
+    };
+    try {
+      const score = await judgeInterview({ sim, fixture: job.fixture, candidate: job.candidate, questions: PRACTICE_QUESTIONS, judgeModel: o.judgeModel });
+      return { ...job, sim, score };
+    } catch (err) {
+      return { ...job, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  const dir = join(process.cwd(), "evals", "results");
+  const name = `${data.stamp}-rejudged`;
+  const { markdown, metrics } = report(o, outcomes, name, data.commit, previousRun(dir, name));
+  writeFileSync(join(dir, `${name}.md`), markdown);
+  writeFileSync(
+    join(dir, `${name}.json`),
+    JSON.stringify({ ...data, stamp: name, options: o, metrics, interviews: outcomes.map((x) => ({ ...(data.interviews as Record<string, any>[]).find((y) => y.id === x.id), verdicts: x.score?.verdicts, checks: x.score?.checks, judgeTokens: x.score?.judgeTokens, error: x.error })) }, null, 2),
+  );
+  console.log(markdown.split("\n## By candidate")[0]);
 }
 
 /**

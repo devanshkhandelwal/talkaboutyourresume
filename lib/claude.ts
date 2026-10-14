@@ -30,10 +30,13 @@ export async function askJson<T>(opts: {
   /** JSON Schema for the result object. */
   schema: Record<string, unknown>;
   maxTokens?: number;
+  /** Omit for the model's default; 0 for repeatable output (the eval judge). */
+  temperature?: number;
 }): Promise<{ data: T; usage: ClaudeUsage }> {
   const res = await claude().messages.create({
     model: opts.model,
     max_tokens: opts.maxTokens ?? 2000,
+    ...(opts.temperature === undefined ? {} : { temperature: opts.temperature }),
     system: `${opts.system}\n\nDeliver your answer by calling the \`respond\` tool exactly once. Do not reply with text.`,
     messages: [{ role: "user", content: opts.user }],
     tools: [
