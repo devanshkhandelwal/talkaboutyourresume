@@ -17,6 +17,7 @@ import { FillerSummary, Highlighted } from "@/components/FillerWords";
 import { ResumeHeatmap } from "@/components/ResumeHeatmap";
 import { ScheduleNext } from "@/components/ScheduleNext";
 import { ShareResult } from "@/components/ShareResult";
+import { SaveInterview } from "@/components/SaveInterview";
 import { analyzeFillers } from "@/lib/fillers";
 import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
 import type { ClaudeUsage, FeedbackReport, InterviewSession, ResumeTopic } from "@/lib/types";
@@ -395,6 +396,7 @@ export default function FeedbackPage() {
         </div>
 
         <aside aria-label="Your practice" className="aside-sticky">
+          {report && total > 0 && !tooShort && <SaveInterview session={session} report={report} />}
           {cost && (cost.voiceMs > 0 || cost.claude.length > 0) && (
             <section aria-labelledby="cost-title" className="card" style={{ padding: 20 }}>
               <h2 id="cost-title" style={{ margin: "0 0 10px", fontSize: "1.125rem", fontWeight: 600 }}>

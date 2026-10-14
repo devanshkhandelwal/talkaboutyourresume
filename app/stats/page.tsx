@@ -20,6 +20,9 @@ const LABELS: Record<(typeof EVENTS)[number], string> = {
   feedback_generated: "Feedback generated",
   feedback_failed: "Feedback that failed",
   waitlist_signup: "Waitlist signups",
+  account_created: "Accounts created",
+  account_deleted: "Accounts deleted",
+  interview_saved: "Interviews saved to a profile",
 };
 
 // The path from upload to feedback, in order.
