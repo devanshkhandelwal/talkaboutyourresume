@@ -13,7 +13,7 @@ export default function Privacy() {
         </p>
         <h2 style={{ fontSize: "1.125rem", marginTop: 24 }}>Where it goes</h2>
         <p className="muted">
-          Your resume and transcript are sent to our AI providers (Anthropic for reading your resume and writing feedback, Deepgram for live speech) only to run your practice session. During the beta, your resume and transcript are kept in your own browser tab and are not stored on our servers. Closing the tab clears them. Your feedback is only stored if you sign in, as described below.
+          Your resume, transcript and any planned answers you write are sent to our AI providers (Anthropic for reading your resume and writing feedback, Deepgram for live speech) only to run your practice session. During the beta, your resume and transcript are kept in your own browser tab and are not stored on our servers. Closing the tab clears them. Your feedback is only stored if you sign in, as described below.
         </p>
         <h2 style={{ fontSize: "1.125rem", marginTop: 24 }}>Your interview audio</h2>
         <p className="muted">

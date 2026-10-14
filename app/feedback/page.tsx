@@ -18,6 +18,7 @@ import { ResumeHeatmap } from "@/components/ResumeHeatmap";
 import { ScheduleNext } from "@/components/ScheduleNext";
 import { ShareResult } from "@/components/ShareResult";
 import { SaveInterview } from "@/components/SaveInterview";
+import { PlannedAnswers } from "@/components/PlannedAnswers";
 import { analyzeFillers } from "@/lib/fillers";
 import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
 import type { ClaudeUsage, FeedbackReport, InterviewSession, ResumeTopic } from "@/lib/types";
@@ -123,7 +124,12 @@ export default function FeedbackPage() {
     fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript: s.transcript, profile: store.getProfile() }),
+      body: JSON.stringify({
+        transcript: s.transcript,
+        profile: store.getProfile(),
+        // Planned answers from setup, for the planned-vs-said comparison (not for 2-minute retries).
+        plans: s.retryTopic ? [] : Object.entries(store.getSetup()?.plans ?? {}).map(([question, plan]) => ({ question, plan })),
+      }),
     })
       .then(async (res) => {
         const data = await res.json();
@@ -327,6 +333,8 @@ export default function FeedbackPage() {
                 </ul>
               </>
             )}
+
+            {report.planned && report.planned.length > 0 && <PlannedAnswers items={report.planned} />}
 
             {resume && total > 0 && <ResumeHeatmap resumeText={resume.text} topics={resume.topics} answers={report.answers} />}
           </>
