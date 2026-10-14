@@ -10,6 +10,17 @@ export function thinkModel(): string {
 }
 
 /**
+ * Turn-taking for the candidate's speech (Deepgram Flux). Measured with spoken
+ * test audio, `npm run eval:pauses` ("So the hardest part was, um," + pause + rest):
+ *   Nova-3 (before)  cut in under 1 s into the pause
+ *   Flux 0.75        cuts in on 2.5 s pauses; replies ~0.9 s after you finish
+ *   Flux 0.9         waits through 2.5 s pauses (4 s is borderline); replies ~1.7 s after
+ *   Flux 0.95        same pauses as 0.9, replies ~2.6 s after
+ * 0.9 by default; personas override it (Interviewer.patience).
+ */
+export const LISTEN = { eotThreshold: 0.9, eotTimeoutMs: 7000 };
+
+/**
  * The Settings message that configures a Deepgram Voice Agent session: listening,
  * the interviewer's brain and voice, and the spoken greeting. Shared by
  * /api/session (live interviews) and evals/ (simulated ones), so evals test
@@ -25,12 +36,19 @@ export function buildAgentSettings(o: { interviewer: Interviewer; prompt: string
     },
     agent: {
       listen: {
+        // Flux decides when you're done talking from what you're saying, not only
+        // from silence, so a thinking pause mid-sentence ("and then I... um...")
+        // doesn't hand the turn to the interviewer. Nova-3 ended turns on silence alone.
         provider: {
           type: "deepgram",
-          model: "nova-3",
-          smart_format: false,
-          // No filler_words here: the voice agent rejects it and closes the session, even
-          // though Deepgram's plain speech-to-text supports it. So "um" and "uh" are dropped.
+          version: "v2",
+          model: "flux-general-en",
+          // Confidence needed to end your turn (0.5-1.0); see LISTEN above.
+          eot_threshold: o.interviewer.patience ?? LISTEN.eotThreshold,
+          // Silence after which your turn ends regardless, so a finished answer
+          // doesn't hang.
+          eot_timeout_ms: LISTEN.eotTimeoutMs,
+          // No filler_words: the voice agent rejected it and closed sessions.
         },
       },
       think: {
