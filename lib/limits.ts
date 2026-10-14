@@ -28,6 +28,14 @@ async function redis(command: (string | number)[]): Promise<unknown> {
   return data.result;
 }
 
+// Days are counted in Eastern Time, so the /stats page lines up with the owner's day.
+export const STATS_TIME_ZONE = "America/New_York";
+
+/** The calendar date (YYYY-MM-DD) in Eastern Time. */
+export function easternDay(d = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: STATS_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+
 export function clientIp(req: NextRequest): string {
   return (
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -40,7 +48,7 @@ export function clientIp(req: NextRequest): string {
 export async function takeDailyInterview(ip: string): Promise<boolean> {
   if (!redisEnabled) return true;
   const limit = Number(process.env.DAILY_INTERVIEWS_PER_IP || 3);
-  const day = new Date().toISOString().slice(0, 10);
+  const day = easternDay();
   const key = `interviews:${day}:${ip}`;
   const count = Number(await redis(["INCR", key]));
   if (count === 1) await redis(["EXPIRE", key, 60 * 60 * 26]);
@@ -79,7 +87,7 @@ export type UsageEvent = (typeof EVENTS)[number] | `interviewer:${string}`;
 export async function trackEvent(event: UsageEvent): Promise<void> {
   if (!redisEnabled) return;
   try {
-    const key = `events:${new Date().toISOString().slice(0, 10)}`;
+    const key = `events:${easternDay()}`;
     await redis(["HINCRBY", key, event, 1]);
     await redis(["EXPIRE", key, 60 * 60 * 24 * 400]);
   } catch (err) {
@@ -89,7 +97,9 @@ export async function trackEvent(event: UsageEvent): Promise<void> {
 
 /** Counts for the last `days` days (UTC), newest first. */
 export async function readEvents(days: number): Promise<{ day: string; counts: Record<string, number> }[]> {
-  const list = Array.from({ length: days }, (_, i) => new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10));
+  // Step back whole calendar days from today's Eastern date (no 24-hour math, so DST can't skip or repeat a day).
+  const today = new Date(`${easternDay()}T00:00:00Z`);
+  const list = Array.from({ length: days }, (_, i) => new Date(today.getTime() - i * 86_400_000).toISOString().slice(0, 10));
   return Promise.all(
     list.map(async (day) => {
       const flat = ((await redis(["HGETALL", `events:${day}`])) ?? []) as string[];
