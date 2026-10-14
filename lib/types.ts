@@ -24,6 +24,18 @@ export type ResumeProfile = {
 export type TranscriptLine = {
   role: "user" | "assistant";
   content: string;
+  /** Candidate turns: ms from when they started talking to when the turn ended (thinking pauses included). */
+  speakMs?: number;
+};
+
+/** One interviewer turn's response time from Deepgram's LatencyReport, in seconds. */
+export type TurnLatency = { total: number; stt?: number; llm?: number; tts?: number };
+
+/** Measurements from the voice session, for "Stats for nerds". */
+export type VoiceStats = {
+  latencies: TurnLatency[];
+  /** Interviewer audio actually received, in ms. */
+  interviewerAudioMs: number;
 };
 
 export type Verdict = "strong" | "needs_detail" | "vague";
@@ -76,6 +88,8 @@ export type InterviewSession = {
   startedAt: number;
   endedAt?: number;
   transcript: TranscriptLine[];
+  /** Missing on sessions recorded before Stats for nerds. */
+  voice?: VoiceStats;
 };
 
 /** Public response of /api/deepgram-balance. */

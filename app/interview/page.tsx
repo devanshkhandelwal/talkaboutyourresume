@@ -143,6 +143,7 @@ export default function InterviewPage() {
       startedAt: startedAt.current,
       endedAt: Date.now(),
       transcript: linesRef.current,
+      voice: agentRef.current?.voiceStats(),
     });
     store.setReport(null);
     // Anonymous count of finished calls; sendBeacon survives the page change.

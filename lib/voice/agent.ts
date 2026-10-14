@@ -1,6 +1,6 @@
 "use client";
 
-import type { TranscriptLine } from "../types";
+import type { TranscriptLine, TurnLatency, VoiceStats } from "../types";
 import { recording } from "./recording";
 import { readLevel } from "./level";
 import { AGENT_URL } from "@/lib/agentSettings";
@@ -39,6 +39,10 @@ export class InterviewAgent {
   private keepAlive: ReturnType<typeof setInterval> | null = null;
   private muted = false;
   private agentSpeaking = false;
+  // Stats for nerds: when the candidate's current turn started, response times, audio received.
+  private userTurnStartedAt: number | null = null;
+  private latencies: TurnLatency[] = [];
+  private interviewerSamples = 0;
   private agentThinking = false;
   /** The candidate has spoken since the interviewer last finished talking. */
   private userSpokeSinceAgent = false;
@@ -177,7 +181,18 @@ export class InterviewAgent {
   }
 
   private handleMessage(raw: string) {
-    let msg: { type?: string; role?: "user" | "assistant"; content?: string; description?: string; code?: string };
+    let msg: {
+      type?: string;
+      role?: "user" | "assistant";
+      content?: string;
+      description?: string;
+      code?: string;
+      total_latency?: number;
+      stt_latency?: number;
+      ttt_text_latency?: number;
+      ttt_token_latency?: number;
+      tts_latency?: number;
+    };
     try {
       msg = JSON.parse(raw);
     } catch {
@@ -188,13 +203,32 @@ export class InterviewAgent {
         this.events.onStatus(this.muted ? "muted" : "listening");
         break;
       case "ConversationText":
-        if (msg.role && msg.content) this.events.onLine({ role: msg.role, content: msg.content });
+        if (msg.role && msg.content) {
+          const line: TranscriptLine = { role: msg.role, content: msg.content };
+          if (msg.role === "user" && this.userTurnStartedAt !== null) {
+            line.speakMs = Date.now() - this.userTurnStartedAt;
+            this.userTurnStartedAt = null;
+          }
+          this.events.onLine(line);
+        }
+        break;
+      case "LatencyReport":
+        if (typeof msg.total_latency === "number") {
+          this.latencies.push({
+            total: msg.total_latency,
+            stt: msg.stt_latency,
+            llm: msg.ttt_text_latency ?? msg.ttt_token_latency,
+            tts: msg.tts_latency,
+          });
+        }
         break;
       case "UserStartedSpeaking":
         // Barge-in: the candidate talked over the interviewer, so stop playback.
         this.stopPlayback();
         this.agentSpeaking = false;
         this.userSpokeSinceAgent = true;
+        // The first start since their last turn; pauses mid-answer don't reset it.
+        this.userTurnStartedAt ??= Date.now();
         this.events.onStatus(this.muted ? "muted" : "listening");
         break;
       case "AgentThinking":
@@ -234,6 +268,7 @@ export class InterviewAgent {
   private playChunk(buf: ArrayBuffer) {
     if (!this.ctx || buf.byteLength < 2) return;
     const pcm = new Int16Array(buf, 0, Math.floor(buf.byteLength / 2));
+    this.interviewerSamples += pcm.length;
     const audio = this.ctx.createBuffer(1, pcm.length, OUTPUT_RATE);
     const data = audio.getChannelData(0);
     for (let i = 0; i < pcm.length; i++) data[i] = pcm[i] / 0x8000;
@@ -315,6 +350,11 @@ export class InterviewAgent {
   /** Have the interviewer say a specific line now. */
   say(message: string) {
     this.sendJson({ type: "InjectAgentMessage", message });
+  }
+
+  /** Response times and audio received, for the results page's Stats for nerds. */
+  voiceStats(): VoiceStats {
+    return { latencies: [...this.latencies], interviewerAudioMs: Math.round((this.interviewerSamples / OUTPUT_RATE) * 1000) };
   }
 
   /** When the voice connection opened, or null if it isn't open. */

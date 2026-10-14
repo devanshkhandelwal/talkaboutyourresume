@@ -19,6 +19,8 @@ import { ScheduleNext } from "@/components/ScheduleNext";
 import { ShareResult } from "@/components/ShareResult";
 import { SaveInterview } from "@/components/SaveInterview";
 import { PlannedAnswers } from "@/components/PlannedAnswers";
+import { StatsForNerds } from "@/components/StatsForNerds";
+import { computeNerdStats } from "@/lib/nerdStats";
 import { analyzeFillers } from "@/lib/fillers";
 import { costBreakdown, costLedger, type CostLedger } from "@/lib/cost";
 import type { ClaudeUsage, FeedbackReport, InterviewSession, ResumeTopic } from "@/lib/types";
@@ -344,6 +346,8 @@ export default function FeedbackPage() {
         )}
 
         {!tooShort && <FillerSummary report={fillers} transcript={session.transcript} />}
+
+        {!tooShort && <StatsForNerds stats={computeNerdStats(session)} />}
 
         <details style={{ marginTop: 20 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>Read the full transcript</summary>
