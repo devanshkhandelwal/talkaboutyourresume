@@ -25,6 +25,32 @@ const WARMUP_VARIANTS = [
   "After the small talk, ask what drew them to this kind of role.",
 ];
 
+/** What the interview focuses on. Picked on setup; the follow-up rules are the same in every mode. */
+export type InterviewMode = "mixed" | "resume" | "general";
+
+export const INTERVIEW_MODES: { id: InterviewMode; label: string; blurb: string }[] = [
+  { id: "mixed", label: "Resume + your questions", blurb: "Digs into your resume, plus any questions you add." },
+  { id: "resume", label: "Just my resume", blurb: "Only follow-ups on what your resume says." },
+  { id: "general", label: "General questions", blurb: "Classic behavioral and motivation questions, answered from your own experience." },
+];
+
+export function isInterviewMode(v: unknown): v is InterviewMode {
+  return v === "mixed" || v === "resume" || v === "general";
+}
+
+// Classic questions for "general" mode; four are picked at random per session.
+const GENERAL_QUESTIONS = [
+  "Tell me about a time you failed or made a mistake.",
+  "Tell me about a disagreement with a teammate and how you handled it.",
+  "Tell me about a time you had to learn something new quickly.",
+  "Tell me about the project you're most proud of.",
+  "Tell me about a time you worked against a tight deadline.",
+  "Tell me about a time you took initiative without being asked.",
+  "What's a piece of feedback that changed how you work?",
+  "Tell me about a time you had to persuade someone who disagreed with you.",
+  "Why do you want this kind of role?",
+];
+
 /**
  * Builds the system prompt for the voice interviewer.
  * Randomness here gives each session a different order and opening,
@@ -38,9 +64,13 @@ export function buildInterviewerPrompt(opts: {
   questions?: string[];
   minutes: number;
   retryTopic?: string;
+  /** Defaults to "mixed": resume topics plus the candidate's questions. */
+  mode?: InterviewMode;
 }): string {
   const { interviewer, profile, focusNote, minutes, retryTopic } = opts;
-  const questions = opts.questions ?? [];
+  const mode = opts.mode ?? "mixed";
+  // "Just my resume" has no question list of its own.
+  const questions = mode === "resume" ? [] : (opts.questions ?? []);
   const topics = shuffle(profile.topics).slice(0, 5);
 
   const topicLines = topics
@@ -51,17 +81,33 @@ export function buildInterviewerPrompt(opts: {
     ? `\nThings on the resume that look inconsistent or vague (ask about at most one, naturally):\n- ${profile.flags.join("\n- ")}`
     : "";
 
+  const askQuestionsFirst = questions.length
+    ? `
+   The candidate also asked to practice the questions listed under <candidate_questions>. Ask them early, right after the warm-up and before the resume topics, one at a time, in your own words. Follow up on the answers like any other, then move on to the resume.`
+    : "";
+
   const structure = retryTopic
     ? `This is a short retry session. Skip small talk beyond one line. Ask about this one topic and dig in with follow-ups until the answer is specific, then thank them and end:\n"${retryTopic}"`
-    : `Interview structure (about ${minutes} minutes total, do not mention the time limit unless asked):
+    : mode === "general"
+      ? `Interview structure (about ${minutes} minutes total, do not mention the time limit unless asked). This is a general behavioral interview, not a walk through the resume:
+1. Brief small talk (one or two exchanges).
+2. Ask them to tell you a bit about themselves.
+3. Behavioral and motivation questions, one at a time, in your own words.${
+          questions.length ? " First every question under <candidate_questions>, then" : ""
+        } these, in this order, as time allows:
+${shuffle(GENERAL_QUESTIONS)
+  .filter((g) => !questions.some((q) => q.toLowerCase() === g.toLowerCase()))
+  .slice(0, 4)
+  .map((g) => `   - ${g}`)
+  .join("\n")}
+   They answer from their own experience. The resume below is background: use it to understand their stories and follow up, but don't quiz them on resume line items.
+4. Near the end: ${pick(CLOSING_VARIANTS)}`
+      : `Interview structure (about ${minutes} minutes total, do not mention the time limit unless asked):
 1. Brief small talk (one or two exchanges).
 2. ${pick(WARMUP_VARIANTS)}
-3. Experience questions drawn from the resume topics below. Start with the one they are most likely to answer well, then go deeper. You will not get through all of them, and that is fine.${
-        questions.length
-          ? `
-   The candidate also asked to practice the questions listed under <candidate_questions>. Ask them early, right after the warm-up and before the resume topics, one at a time, in your own words. Follow up on the answers like any other, then move on to the resume.`
-          : ""
-      }
+3. Experience questions drawn from the resume topics below. Start with the one they are most likely to answer well, then go deeper. ${
+          mode === "resume" ? "Stay on their resume: no general behavioral questions." : "You will not get through all of them, and that is fine."
+        }${askQuestionsFirst}
 4. Near the end: ${pick(CLOSING_VARIANTS)}`;
 
   return `You are conducting a realistic, spoken mock job interview. You are "${interviewer.name}".

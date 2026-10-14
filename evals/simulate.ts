@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { claude } from "@/lib/claude";
 import { getInterviewer } from "@/lib/interviewers";
-import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, buildInterviewerPrompt } from "@/lib/prompts";
+import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, buildInterviewerPrompt, type InterviewMode } from "@/lib/prompts";
 import { buildAgentSettings } from "@/lib/agentSettings";
 import { DeepgramInterviewer } from "./deepgram";
 import { INJECTED_FLAG, type Candidate } from "./candidates";
@@ -20,6 +20,8 @@ export type Turn = { role: "interviewer" | "candidate"; text: string };
 
 export type SimOptions = {
   backend: "deepgram" | "claude";
+  /** Interview mode; defaults to "mixed". */
+  mode?: InterviewMode;
   fixture: Fixture;
   candidate: Candidate;
   interviewerId: string;
@@ -109,7 +111,7 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
   const interviewer = getInterviewer(o.interviewerId);
   const profile =
     o.candidate.id === "adversarial" ? { ...o.fixture.profile, flags: [...o.fixture.profile.flags, INJECTED_FLAG] } : o.fixture.profile;
-  const basePrompt = buildInterviewerPrompt({ interviewer, profile, focusNote: "", questions: o.questions, minutes: 15 });
+  const basePrompt = buildInterviewerPrompt({ interviewer, profile, focusNote: "", questions: o.questions, minutes: 15, mode: o.mode });
   const greeting = interviewer.greetings[Math.floor(Math.random() * interviewer.greetings.length)];
   const candSystem = candidateSystem(o);
   const tokens = { interviewer: { input: 0, output: 0 }, candidate: { input: 0, output: 0 } };

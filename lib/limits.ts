@@ -81,7 +81,7 @@ export const EVENTS = [
   "account_deleted",
   "interview_saved",
 ] as const;
-export type UsageEvent = (typeof EVENTS)[number] | `interviewer:${string}`;
+export type UsageEvent = (typeof EVENTS)[number] | `interviewer:${string}` | `mode:${string}`;
 
 /** Adds one to today's count. Never throws: tracking must not break a request. */
 export async function trackEvent(event: UsageEvent): Promise<void> {

@@ -6,6 +6,7 @@ import { FIXTURES, PRACTICE_QUESTIONS, type Fixture } from "./fixtures";
 import { formatTranscript, judgeInterview, type Score } from "./judge";
 import { simulateInterview, type SimResult } from "./simulate";
 import { THINK_TEMPERATURE, thinkModel } from "@/lib/agentSettings";
+import { isInterviewMode, type InterviewMode } from "@/lib/prompts";
 
 // Interviewer evals. Runs every fixture × candidate (× --runs), judges each
 // transcript, and writes a scorecard to evals/results/<timestamp>.md (plus the
@@ -19,6 +20,7 @@ import { THINK_TEMPERATURE, thinkModel } from "@/lib/agentSettings";
 
 type Options = {
   backend: "deepgram" | "claude";
+  mode: InterviewMode;
   runs: number;
   candidates: string[];
   fixtures: string[];
@@ -41,6 +43,7 @@ function parseArgs(argv: string[]): Options {
   const list = (name: string, all: string[]) => (get(name) ? get(name)!.split(",").map((s) => s.trim()) : all);
   return {
     backend: get("backend") === "claude" ? "claude" : "deepgram",
+    mode: isInterviewMode(get("mode")) ? (get("mode") as InterviewMode) : "mixed",
     runs: Number(get("runs") ?? 1),
     candidates: list("candidates", CANDIDATES.map((c) => c.id)),
     fixtures: list("fixtures", FIXTURES.map((f) => f.id)),
@@ -371,6 +374,7 @@ async function main() {
     try {
       const sim = await simulateInterview({
         backend: o.backend,
+        mode: o.mode,
         fixture: job.fixture,
         candidate: job.candidate,
         interviewerId: o.interviewer,
