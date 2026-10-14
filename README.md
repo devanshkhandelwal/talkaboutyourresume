@@ -96,6 +96,7 @@ Only the two API keys are required. Everything else switches itself off when its
 ```bash
 npm run typecheck   # TypeScript
 npm run build       # production build
+npm run eval        # interviewer evals: simulated candidates + a judge model (see evals/README.md)
 ```
 
 ## Environment variables
@@ -165,7 +166,7 @@ Deepgram's Voice Agent is about **$0.075 a minute**, which includes the intervie
 - The 15-minute cap is enforced in the browser; a modified client could keep a voice session open. Cap spend in the Deepgram console.
 - Daily limits are per IP address, which a campus network shares.
 - "Um" and "uh" can't be counted: Deepgram's voice agent drops them.
-- There are no automated tests or feedback-quality evals yet.
+- The interviewer has an eval suite (`npm run eval`), but there are no automated tests for the routes or feedback-quality evals yet.
 
 ## Roadmap
 
