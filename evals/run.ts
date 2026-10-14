@@ -85,6 +85,14 @@ type Metric = {
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : null);
 const scored = (o: Outcome[]) => o.filter((x) => x.score) as (Outcome & { score: Score; sim: SimResult })[];
 
+function perInterview(o: Outcome[], count: (x: Outcome & { score: Score; sim: SimResult }) => number) {
+  const s = scored(o);
+  if (!s.length) return { text: "n/a", value: null, pass: null };
+  const total = s.reduce((n, x) => n + count(x), 0);
+  const v = Math.round((total / s.length) * 100) / 100;
+  return { text: `${v} (${total} in ${s.length})`, value: v, pass: total === 0 };
+}
+
 const METRICS: Metric[] = [
   {
     id: "vague_follow_up",
@@ -134,25 +142,20 @@ const METRICS: Metric[] = [
       return { text: v === null ? "n/a" : `${v}% (${multi}/${turns})`, value: v, pass: v === null ? null : v <= 5 };
     },
   },
+  // Counted problems are reported per interview, so runs of different sizes compare.
   {
     id: "feedback_leaks",
-    label: "Feedback or scores given mid-interview",
+    label: "Praise or feedback mid-interview, per interview",
     target: "0",
     higherIsBetter: false,
-    compute: (o) => {
-      const v = scored(o).reduce((n, x) => n + x.score.verdicts.feedback_leaks.length, 0);
-      return { text: String(v), value: v, pass: v === 0 };
-    },
+    compute: (o) => perInterview(o, (x) => x.score.verdicts.feedback_leaks.length),
   },
   {
     id: "character_breaks",
-    label: "Breaks character or mentions its instructions",
+    label: "Breaks character or mentions its instructions, per interview",
     target: "0",
     higherIsBetter: false,
-    compute: (o) => {
-      const v = scored(o).reduce((n, x) => n + x.score.verdicts.character_breaks.length, 0);
-      return { text: String(v), value: v, pass: v === 0 };
-    },
+    compute: (o) => perInterview(o, (x) => x.score.verdicts.character_breaks.length),
   },
   {
     id: "practice_coverage",
@@ -223,7 +226,7 @@ type SavedRun = { stamp: string; options: Options; commit: string; metrics: Reco
 
 function previousRun(dir: string, stamp: string): SavedRun | null {
   const files = readdirSync(dir)
-    .filter((f) => f.endsWith(".json") && !f.startsWith(stamp))
+    .filter((f) => f.endsWith(".json") && !f.startsWith(stamp) && f < stamp)
     .sort();
   if (!files.length) return null;
   const data = JSON.parse(readFileSync(join(dir, files[files.length - 1]), "utf8"));
@@ -232,13 +235,13 @@ function previousRun(dir: string, stamp: string): SavedRun | null {
 
 function delta(m: Metric, now: number | null, before: number | null | undefined) {
   if (now === null || before === null || before === undefined) return "";
-  const d = Math.round((now - before) * 10) / 10;
+  const d = Math.round((now - before) * 100) / 100;
   if (d === 0) return "same";
   const better = m.higherIsBetter ? d > 0 : d < 0;
   return `${d > 0 ? "+" : ""}${d} ${better ? "better" : "worse"}`;
 }
 
-function report(o: Options, outcomes: Outcome[], stamp: string, commit: string, prev: SavedRun | null) {
+function report(o: Options, outcomes: Outcome[], stamp: string, commit: string, prev: SavedRun | null, haveTokens = true) {
   const s = scored(outcomes);
   const results = METRICS.map((m) => ({ m, r: m.compute(outcomes) }));
   const passed = results.filter((x) => x.r.pass === true).length;
@@ -297,7 +300,7 @@ function report(o: Options, outcomes: Outcome[], stamp: string, commit: string, 
     "",
     "## Cost of this run",
     "",
-    known ? `About $${parts.reduce((a, b) => a! + b!, 0)!.toFixed(2)} of Claude API usage (interviewer $${parts[0]!.toFixed(2)}, simulated candidates $${parts[1]!.toFixed(2)}, judge $${parts[2]!.toFixed(2)}).` : "Unknown (a model's price isn't in evals/run.ts).",
+    !haveTokens ? "Not recorded for this run." : known ? `About $${parts.reduce((a, b) => a! + b!, 0)!.toFixed(2)} of Claude API usage (interviewer $${parts[0]!.toFixed(2)}, simulated candidates $${parts[1]!.toFixed(2)}, judge $${parts[2]!.toFixed(2)}).` : "Unknown (a model's price isn't in evals/run.ts).",
   );
 
   lines.push("", "## Sample transcript", "", "<details><summary>" + (s[0]?.id ?? "") + "</summary>", "", "```", s[0] ? formatTranscript(s[0].sim.transcript) : "", "```", "", "</details>", "");
@@ -316,7 +319,10 @@ async function main() {
   try {
     process.loadEnvFile(".env.local");
   } catch {}
-  const o = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const rebuild = argv.indexOf("--report");
+  if (rebuild >= 0) return rebuildReport(argv[rebuild + 1]);
+  const o = parseArgs(argv);
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env.local).");
   const fixtures = FIXTURES.filter((f) => o.fixtures.includes(f.id));
   const candidates = CANDIDATES.filter((c) => o.candidates.includes(c.id));
@@ -366,7 +372,17 @@ async function main() {
         commit,
         options: o,
         metrics,
-        interviews: outcomes.map((x) => ({ id: x.id, error: x.error, ended: x.sim?.ended, verdicts: x.score?.verdicts, checks: x.score?.checks, transcript: x.sim?.transcript })),
+        interviews: outcomes.map((x) => ({
+          id: x.id,
+          error: x.error,
+          ended: x.sim?.ended,
+          wrapStartedAt: x.sim?.wrapStartedAt,
+          tokens: x.sim?.tokens,
+          judgeTokens: x.score?.judgeTokens,
+          verdicts: x.score?.verdicts,
+          checks: x.score?.checks,
+          transcript: x.sim?.transcript,
+        })),
       },
       null,
       2,
@@ -374,6 +390,32 @@ async function main() {
   );
   console.log(markdown.split("\n## By candidate")[0]);
   console.error(`\nFull report: evals/results/${name}.md`);
+}
+
+/**
+ * Rewrites a saved run's .md from its .json, without calling the API: for
+ * report-format changes. Usage: npm run eval -- --report evals/results/<name>.json
+ */
+function rebuildReport(file: string) {
+  const data = JSON.parse(readFileSync(file, "utf8"));
+  const o = data.options as Options;
+  const zero = { input: 0, output: 0 };
+  const outcomes: Outcome[] = (data.interviews as Record<string, any>[]).map((x) => {
+    const [fixtureId, candidateId] = String(x.id).split("/");
+    const job = { id: x.id, fixture: FIXTURES.find((f) => f.id === fixtureId)!, candidate: CANDIDATES.find((c) => c.id === candidateId)! };
+    if (x.error || !x.verdicts) return { ...job, error: x.error ?? "missing verdicts" };
+    return {
+      ...job,
+      sim: { transcript: x.transcript, ended: x.ended, wrapStartedAt: x.wrapStartedAt ?? -1, tokens: x.tokens ?? { interviewer: zero, candidate: zero } },
+      score: { verdicts: x.verdicts, checks: x.checks, judgeTokens: x.judgeTokens ?? zero },
+    };
+  });
+  const dir = join(process.cwd(), "evals", "results");
+  const prev = previousRun(dir, data.stamp);
+  const { markdown, metrics } = report(o, outcomes, data.stamp, data.commit, prev, Boolean(data.interviews[0]?.tokens));
+  writeFileSync(file.replace(/\.json$/, ".md"), markdown);
+  writeFileSync(file, JSON.stringify({ ...data, metrics }, null, 2));
+  console.log(markdown.split("\n## By candidate")[0]);
 }
 
 main().catch((err) => {
