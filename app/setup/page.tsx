@@ -36,6 +36,9 @@ export default function SetupPage() {
   const [picked, setPicked] = useState("manager");
   const [note, setNote] = useState("");
   const [questions, setQuestions] = useState<string[]>([]);
+  // Planned answers by question, and which questions have their answer box open.
+  const [plans, setPlans] = useState<Record<string, string>>({});
+  const [openPlans, setOpenPlans] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState("");
   const [questionError, setQuestionError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -69,6 +72,7 @@ export default function SetupPage() {
       setPicked(s.interviewerId);
       setNote(s.focusNote);
       setQuestions(s.questions ?? []);
+      setPlans(s.plans ?? {});
     }
     setLoaded(true);
   }, []);
@@ -118,6 +122,8 @@ export default function SetupPage() {
   }
 
   function removeQuestion(i: number) {
+    const q = questions[i];
+    setPlans(({ [q]: _, ...rest }) => rest);
     setQuestions((qs) => qs.filter((_, j) => j !== i));
     setQuestionError(null);
   }
@@ -128,7 +134,9 @@ export default function SetupPage() {
   }
 
   function start() {
-    store.setSetup({ interviewerId: picked, focusNote: note, questions });
+    // Only planned answers that still have a question and some text.
+    const kept = Object.fromEntries(questions.flatMap((q) => (plans[q]?.trim() ? [[q, plans[q].trim()]] : [])));
+    store.setSetup({ interviewerId: picked, focusNote: note, questions, plans: kept });
     store.setReport(null);
     router.push("/interview");
   }
@@ -246,7 +254,7 @@ export default function SetupPage() {
             Questions you want to practice
           </h2>
           <p className="muted" style={{ margin: "6px 0 20px" }}>
-            Your interviewer will ask each one in their own words, along with questions about your resume. Up to {MAX_QUESTIONS}. Optional.
+            Your interviewer will ask each one in their own words, along with questions about your resume. Add how you&apos;d answer any of them, and your results will compare it with what you actually said. Up to {MAX_QUESTIONS}. Optional.
           </p>
           <form
             onSubmit={(e) => {
@@ -282,18 +290,66 @@ export default function SetupPage() {
           {questions.length > 0 && (
             <ul aria-label="Your questions" style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
               {questions.map((q, i) => (
-                <li key={q} className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 8px 8px 14px" }}>
-                  <span style={{ flex: "1 1 auto", minWidth: 0, overflowWrap: "anywhere" }}>{q}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeQuestion(i)}
-                    aria-label={`Remove question: ${q}`}
-                    className="icon-btn"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-                      <path d="M6 6l12 12M18 6L6 18" />
-                    </svg>
-                  </button>
+                <li key={q} className="card" style={{ padding: "8px 8px 8px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ flex: "1 1 auto", minWidth: 0, overflowWrap: "anywhere" }}>{q}</span>
+                    {!openPlans.has(q) && (
+                      <button
+                        type="button"
+                        className="chip-btn"
+                        onClick={() => setOpenPlans((o) => new Set(o).add(q))}
+                        aria-label={`${plans[q] ? "Edit" : "Add"} how you'd answer: ${q}`}
+                      >
+                        {plans[q] ? "Edit your answer" : "+ How you'd answer"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(i)}
+                      aria-label={`Remove question: ${q}`}
+                      className="icon-btn"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                        <path d="M6 6l12 12M18 6L6 18" />
+                      </svg>
+                    </button>
+                  </div>
+                  {openPlans.has(q) ? (
+                    <div style={{ margin: "10px 6px 6px 0" }}>
+                      <label htmlFor={`plan-${i}`} className="subtle" style={{ display: "block", marginBottom: 6 }}>
+                        How you&apos;d answer. Bullet points are fine. The interviewer won&apos;t see this; your results will compare it with what you actually said.
+                      </label>
+                      <textarea
+                        id={`plan-${i}`}
+                        className="textarea"
+                        rows={4}
+                        maxLength={1500}
+                        value={plans[q] ?? ""}
+                        onChange={(e) => setPlans((p) => ({ ...p, [q]: e.target.value }))}
+                        placeholder="e.g. Checkout took 3.1 s on mobile. I profiled it, deferred two payment scripts, lazy-loaded the card form. Down to 1.8 s."
+                      />
+                      <button
+                        type="button"
+                        className="chip-btn"
+                        style={{ marginTop: 8 }}
+                        onClick={() =>
+                          setOpenPlans((o) => {
+                            const n = new Set(o);
+                            n.delete(q);
+                            return n;
+                          })
+                        }
+                      >
+                        Done
+                      </button>
+                    </div>
+                  ) : (
+                    plans[q]?.trim() && (
+                      <p className="subtle" style={{ margin: "6px 6px 2px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        Your answer: {plans[q]}
+                      </p>
+                    )
+                  )}
                 </li>
               ))}
             </ul>
@@ -373,7 +429,10 @@ export default function SetupPage() {
               </div>
               <div>
                 <dt>Your questions</dt>
-                <dd>{questions.length ? `${questions.length} of ${MAX_QUESTIONS}` : "None"}</dd>
+                <dd>
+                  {questions.length ? `${questions.length} of ${MAX_QUESTIONS}` : "None"}
+                  {questions.some((q) => plans[q]?.trim()) ? `, ${questions.filter((q) => plans[q]?.trim()).length} planned` : ""}
+                </dd>
               </div>
               <div>
                 <dt>Note</dt>

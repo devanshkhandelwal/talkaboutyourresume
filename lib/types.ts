@@ -38,12 +38,34 @@ export type AnswerFeedback = {
   tip: string;
 };
 
+/** A practice question with the answer the candidate planned to give. */
+export type PlannedAnswer = { question: string; plan: string };
+
+/** How what they said compares with what they planned, for one practice question. */
+export type PlanComparison = {
+  question: string;
+  /** Whether the interviewer asked it (in any wording). */
+  asked: boolean;
+  /** Planned points they said. */
+  covered: string[];
+  /** Planned points they left out. */
+  missed: string[];
+  /** Good points they said that weren't in the plan. */
+  added: string[];
+  /** The single most useful change. */
+  suggestion: string;
+  /** A tighter answer built only from their plan and what they said; [brackets] mark missing facts. */
+  improved: string;
+};
+
 export type FeedbackReport = {
   summary: string;
   bestMoment: { quote: string; why: string } | null;
   answers: AnswerFeedback[];
   /** Index into answers of the one to retry, or null */
   weakestIndex: number | null;
+  /** Planned vs said, one per practice question that had a planned answer. */
+  planned?: PlanComparison[];
 };
 
 export type InterviewSession = {

@@ -3,7 +3,13 @@
 import type { FeedbackReport, InterviewSession, ResumeProfile } from "./types";
 
 /** What the person chose on the setup screen. `questions` are ones they want to be asked. */
-export type SetupChoice = { interviewerId: string; focusNote: string; questions?: string[] };
+export type SetupChoice = {
+  interviewerId: string;
+  focusNote: string;
+  questions?: string[];
+  /** Planned answers, keyed by question. Never sent to the interviewer; only used to compare afterwards. */
+  plans?: Record<string, string>;
+};
 
 // Beta: everything lives in the browser's sessionStorage, so a page refresh
 // keeps progress but nothing is stored on a server.
