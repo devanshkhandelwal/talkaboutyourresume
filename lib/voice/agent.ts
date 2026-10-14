@@ -3,6 +3,7 @@
 import type { TranscriptLine } from "../types";
 import { recording } from "./recording";
 import { readLevel } from "./level";
+import { AGENT_URL } from "@/lib/agentSettings";
 
 export type AgentStatus =
   | "connecting"
@@ -21,7 +22,6 @@ export type AgentEvents = {
   onVoiceTime?: (ms: number) => void;
 };
 
-const AGENT_URL = "wss://agent.deepgram.com/v1/agent/converse";
 const OUTPUT_RATE = 24000;
 
 /**

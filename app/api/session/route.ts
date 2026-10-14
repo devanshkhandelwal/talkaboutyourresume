@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { getInterviewer, INTERVIEWERS } from "@/lib/interviewers";
 import { buildInterviewerPrompt } from "@/lib/prompts";
+import { buildAgentSettings } from "@/lib/agentSettings";
 import { clientIp, takeDailyInterview, trackEvent } from "@/lib/limits";
 import type { ResumeProfile } from "@/lib/types";
 
@@ -73,37 +74,11 @@ export async function POST(req: NextRequest) {
     ? ["Welcome back. Let's take another pass at one of your answers."]
     : interviewer.greetings;
 
-  const settings = {
-    type: "Settings",
-    tags: ["talkaboutyourresume", interviewer.id],
-    audio: {
-      input: { encoding: "linear16", sample_rate: 16000 },
-      output: { encoding: "linear16", sample_rate: 24000, container: "none" },
-    },
-    agent: {
-      listen: {
-        provider: {
-          type: "deepgram",
-          model: "nova-3",
-          smart_format: false,
-          // No filler_words here: the voice agent rejects it and closes the session, even
-          // though Deepgram's plain speech-to-text supports it. So "um" and "uh" are dropped.
-        },
-      },
-      think: {
-        provider: {
-          type: "anthropic",
-          model: process.env.DEEPGRAM_THINK_MODEL || "claude-haiku-4-5",
-          temperature: 0.8,
-        },
-        prompt,
-      },
-      speak: {
-        provider: { type: "deepgram", model: interviewer.voice, speed: interviewer.speed },
-      },
-      greeting: greetings[Math.floor(Math.random() * greetings.length)],
-    },
-  };
+  const settings = buildAgentSettings({
+    interviewer,
+    prompt,
+    greeting: greetings[Math.floor(Math.random() * greetings.length)],
+  });
 
   after(async () => {
     if (retryTopic) return trackEvent("retry_started");

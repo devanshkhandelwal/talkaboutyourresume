@@ -2,18 +2,22 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { claude } from "@/lib/claude";
 import { getInterviewer } from "@/lib/interviewers";
 import { GOODBYE, WRAP_UP_PROMPT_SUFFIX, buildInterviewerPrompt } from "@/lib/prompts";
+import { buildAgentSettings } from "@/lib/agentSettings";
+import { DeepgramInterviewer } from "./deepgram";
 import { INJECTED_FLAG, type Candidate } from "./candidates";
 import type { Fixture } from "./fixtures";
 
-// Runs one text interview between the real interviewer prompt and a simulated
-// candidate. Mirrors production: the same prompt builder, model and temperature
-// as the voice agent's "think" step, the persona's spoken greeting as the first
-// line, and the wrap-up prompt swap near the end. Voice is skipped; this tests
-// what the interviewer decides to say.
+// Runs one interview between the real interviewer and a simulated candidate.
+// By default the interviewer is a real Deepgram Voice Agent session with the
+// production Settings (prompt, model, temperature, greeting), fed the candidate's
+// answers as text; the wrap-up is the same UpdatePrompt the live page sends.
+// `backend: "claude"` instead calls the same model on the Claude API directly,
+// which is faster but skips Deepgram's handling of the conversation.
 
 export type Turn = { role: "interviewer" | "candidate"; text: string };
 
 export type SimOptions = {
+  backend: "deepgram" | "claude";
   fixture: Fixture;
   candidate: Candidate;
   interviewerId: string;
@@ -32,6 +36,8 @@ export type SimResult = {
   ended: "goodbye" | "turn_cap";
   wrapStartedAt: number;
   tokens: { interviewer: Usage; candidate: Usage };
+  /** Seconds the Deepgram session was open (billed per minute), 0 for the Claude backend. */
+  deepgramSeconds: number;
 };
 
 type Usage = { input: number; output: number };
@@ -88,38 +94,59 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
   const basePrompt = buildInterviewerPrompt({ interviewer, profile, focusNote: "", questions: o.questions, minutes: 15 });
   const greeting = interviewer.greetings[Math.floor(Math.random() * interviewer.greetings.length)];
   const candSystem = candidateSystem(o);
-
-  const transcript: Turn[] = [{ role: "interviewer", text: greeting }];
   const tokens = { interviewer: { input: 0, output: 0 }, candidate: { input: 0, output: 0 } };
-  let wrapping = false;
-  let wrapStartedAt = -1;
-  let interviewerTurns = 1;
 
-  for (;;) {
-    // Candidate's turn: they see the interviewer as the other speaker.
-    const candMessages: Anthropic.MessageParam[] = transcript.map((t) => ({
-      role: t.role === "interviewer" ? "user" : "assistant",
-      content: t.text,
-    }));
-    const answer = await call(o.candidateModel, candSystem, candMessages, 1, 500, tokens.candidate);
-    transcript.push({ role: "candidate", text: answer || "(long pause)" });
+  // The interviewer: either a live Deepgram session or the model called directly.
+  let dg: DeepgramInterviewer | null = null;
+  let transcript: Turn[];
+  if (o.backend === "deepgram") {
+    dg = new DeepgramInterviewer();
+    const spoken = await dg.start(buildAgentSettings({ interviewer, prompt: basePrompt, greeting, model: o.model, temperature: o.temperature }));
+    transcript = [{ role: "interviewer", text: spoken }];
+  } else {
+    transcript = [{ role: "interviewer", text: greeting }];
+  }
 
-    if (!wrapping && interviewerTurns >= o.wrapAfter) {
-      wrapping = true;
-      wrapStartedAt = transcript.length;
+  async function interviewerReply(answer: string, wrapping: boolean, justWrapped: boolean): Promise<string> {
+    if (dg) {
+      if (justWrapped) await dg.updatePrompt(basePrompt + WRAP_UP_PROMPT_SUFFIX);
+      return dg.say(answer);
     }
-
-    // Interviewer's turn: same system prompt as production, with the wrap-up swap.
     const system = wrapping ? basePrompt + WRAP_UP_PROMPT_SUFFIX : basePrompt;
     const intMessages: Anthropic.MessageParam[] = [
       { role: "user", content: OPENING },
       ...transcript.map((t): Anthropic.MessageParam => ({ role: t.role === "interviewer" ? "assistant" : "user", content: t.text })),
     ];
-    const reply = await call(o.model, system, intMessages, o.temperature, 400, tokens.interviewer);
-    transcript.push({ role: "interviewer", text: reply });
-    interviewerTurns++;
+    return call(o.model, system, intMessages, o.temperature, 400, tokens.interviewer);
+  }
 
-    if (wrapping && GOODBYE.test(reply)) return { transcript, ended: "goodbye", wrapStartedAt, tokens };
-    if (interviewerTurns >= o.maxTurns) return { transcript, ended: "turn_cap", wrapStartedAt, tokens };
+  let wrapping = false;
+  let wrapStartedAt = -1;
+  let interviewerTurns = 1;
+  try {
+    for (;;) {
+      // Candidate's turn: they see the interviewer as the other speaker.
+      const candMessages: Anthropic.MessageParam[] = transcript.map((t) => ({
+        role: t.role === "interviewer" ? "user" : "assistant",
+        content: t.text,
+      }));
+      const answer = (await call(o.candidateModel, candSystem, candMessages, 1, 500, tokens.candidate)) || "(long pause)";
+      transcript.push({ role: "candidate", text: answer });
+
+      let justWrapped = false;
+      if (!wrapping && interviewerTurns >= o.wrapAfter) {
+        wrapping = justWrapped = true;
+        wrapStartedAt = transcript.length;
+      }
+
+      const reply = await interviewerReply(answer, wrapping, justWrapped);
+      transcript.push({ role: "interviewer", text: reply });
+      interviewerTurns++;
+
+      const done = wrapping && GOODBYE.test(reply) ? "goodbye" : interviewerTurns >= o.maxTurns ? "turn_cap" : null;
+      if (done) return { transcript, ended: done, wrapStartedAt, tokens, deepgramSeconds: dg?.seconds() ?? 0 };
+    }
+  } finally {
+    dg?.close();
   }
 }
