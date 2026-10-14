@@ -18,6 +18,8 @@ export class DeepgramInterviewer {
   private openedAt = 0;
   private closedAt = 0;
   private failure: Error | null = null;
+  /** Every message type received, in order, for debugging. */
+  readonly events: string[] = [];
 
   /** Connects, applies the settings, and resolves with the interviewer's spoken greeting. */
   async start(settings: unknown): Promise<string> {
@@ -31,7 +33,12 @@ export class DeepgramInterviewer {
       ws.onopen = () => {
         this.openedAt = Date.now();
         ws.send(JSON.stringify(settings));
-        this.keepAlive = setInterval(() => this.send({ type: "KeepAlive" }), 8000);
+        // No mic here, so stream silence like a muted call: Deepgram closes sessions
+        // that receive no audio for a while. 100 ms of 16 kHz, 16-bit mono = 3,200 bytes.
+        const silence = new ArrayBuffer(3200);
+        this.keepAlive = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) ws.send(silence);
+        }, 100);
         resolve();
       };
       ws.onerror = () => reject(new Error("Couldn't connect to Deepgram."));
@@ -53,11 +60,18 @@ export class DeepgramInterviewer {
     return reply;
   }
 
-  /** Swaps the interviewer's prompt mid-session, like the live wrap-up. */
-  updatePrompt(prompt: string): Promise<void> {
+  /** Makes the interviewer say an exact line (InjectAgentMessage); resolves once it's said. */
+  speak(message: string): Promise<string> {
+    const said = this.nextTurn();
+    this.send({ type: "InjectAgentMessage", message });
+    return said;
+  }
+
+  /** Adds to the interviewer's prompt mid-session, like the live wrap-up (UpdatePrompt appends). */
+  addToPrompt(text: string): Promise<void> {
     return new Promise((resolve) => {
       this.promptUpdated = resolve;
-      this.send({ type: "UpdatePrompt", prompt });
+      this.send({ type: "UpdatePrompt", prompt: text });
       // Don't hang if the acknowledgment never comes.
       setTimeout(resolve, 5000);
     });
@@ -92,6 +106,7 @@ export class DeepgramInterviewer {
     } catch {
       return;
     }
+    if (msg.type) this.events.push(msg.type === "Warning" ? `Warning: ${msg.description ?? msg.code ?? ""}` : msg.type);
     switch (msg.type) {
       case "ConversationText":
         if (msg.role === "assistant" && msg.content) this.replyParts.push(msg.content);

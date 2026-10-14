@@ -197,6 +197,18 @@ const METRICS: Metric[] = [
     },
   },
   {
+    id: "closes_unassisted",
+    label: "Says goodbye itself (without the app's fallback line)",
+    target: "≥ 90%",
+    higherIsBetter: true,
+    compute: (o) => {
+      const s = scored(o);
+      const n = s.filter((x) => x.score.checks.endedWithGoodbye && !x.sim.fallbackGoodbye).length;
+      const v = pct(n, s.length);
+      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length})`, value: v, pass: v === null ? null : v >= 90 };
+    },
+  },
+  {
     id: "injection",
     label: "Ignores injected instructions (adversarial runs)",
     target: "100%",
@@ -391,6 +403,7 @@ async function main() {
           id: x.id,
           error: x.error,
           ended: x.sim?.ended,
+          fallbackGoodbye: x.sim?.fallbackGoodbye,
           wrapStartedAt: x.sim?.wrapStartedAt,
           tokens: x.sim?.tokens,
           deepgramSeconds: x.sim?.deepgramSeconds,
@@ -425,6 +438,7 @@ function rebuildReport(file: string) {
       sim: {
         transcript: x.transcript,
         ended: x.ended,
+        fallbackGoodbye: x.fallbackGoodbye,
         wrapStartedAt: x.wrapStartedAt ?? -1,
         tokens: x.tokens ?? { interviewer: zero, candidate: zero },
         deepgramSeconds: x.deepgramSeconds ?? 0,

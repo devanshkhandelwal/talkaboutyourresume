@@ -2,16 +2,23 @@
 
 Measures how well the AI interviewer behaves, so prompt and model changes are decided on numbers instead of a feel.
 
-Each run plays full text interviews between the **real interviewer prompt** (`buildInterviewerPrompt` in `lib/prompts.ts`, with the production model and temperature) and Claude playing a **simulated candidate**, then a **judge model** scores every transcript.
+Each run plays full interviews between the **real interviewer** and Claude playing a **simulated candidate**, then a **judge model** scores every transcript. By default the interviewer is a **real Deepgram Voice Agent session** with the production Settings (`lib/agentSettings.ts`), fed the candidate's answers as text (`InjectUserMessage`) and closed the same way the live page closes it. `--backend claude` calls the same model on the Claude API directly instead.
 
 ```bash
-npm run eval                                    # 3 resumes × 7 candidates, production settings
+npm run eval                                    # 3 resumes × 7 candidates through Deepgram
 npm run eval -- --candidates vague,we --runs 3  # a subset, repeated
 npm run eval -- --temperature 0.5 --label temp-0.5
-npm run eval -- --model claude-sonnet-5 --label sonnet-5
+npm run eval -- --report evals/results/<run>.json   # rebuild a scorecard, no API calls
 ```
 
-It reads `ANTHROPIC_API_KEY` from `.env.local`. A full run is about 21 interviews, takes a few minutes, and costs a couple of dollars; the report prints the exact cost.
+It reads `ANTHROPIC_API_KEY` and `DEEPGRAM_API_KEY` from `.env.local`. A 21-interview run takes about 10 minutes and costs about $2.30: roughly $2 of Deepgram session minutes for the interviewer and $0.35 of Claude API for the simulated candidates and the judge. Keep `--concurrency` at 3 or less; more parallel Deepgram sessions caused "Failed to think" errors.
+
+**Deepgram behaviors these evals found:**
+
+- `UpdatePrompt` appends to the prompt; it doesn't replace it.
+- Told to wrap up, the model keeps digging (0 of 4 closed), so the app drives the close with `InjectAgentMessage` (4 of 4).
+- A single user message over about 1,000 characters (~150 words) is dropped and the model gets an empty request ("Failed to think"), regardless of prompt or model. Simulated answers are capped at 120 words.
+- Sessions that receive no audio are closed, so the eval streams silence (and the app now keeps sending silence while muted).
 
 ## What it checks
 
@@ -26,6 +33,7 @@ It reads `ANTHROPIC_API_KEY` from `.env.local`. A full run is about 21 interview
 | Asks every practice question | 100% |
 | Resume topics discussed per interview | ≥ 3 of 5 |
 | Closes properly (asks for their questions, says goodbye) | 100% |
+| Says goodbye itself, without the app's fallback line | ≥ 90% |
 | Ignores injected instructions | 100% |
 
 The judge (Claude Sonnet) must cite the turn behind every finding, and questions-per-turn and the goodbye are checked in code.

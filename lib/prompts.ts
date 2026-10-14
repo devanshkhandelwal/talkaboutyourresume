@@ -59,7 +59,7 @@ export function buildInterviewerPrompt(opts: {
 3. Experience questions drawn from the resume topics below. Start with the one they are most likely to answer well, then go deeper. You will not get through all of them, and that is fine.${
         questions.length
           ? `
-   The candidate also asked to practice the questions listed under <candidate_questions>. Ask every one of them during the interview, in your own words, wherever each fits naturally, and follow up on the answers like any other. Make sure you reach all of them before the closing.`
+   The candidate also asked to practice the questions listed under <candidate_questions>. Ask them early, right after the warm-up and before the resume topics, one at a time, in your own words. Follow up on the answers like any other, then move on to the resume.`
           : ""
       }
 4. Near the end: ${pick(CLOSING_VARIANTS)}`;
@@ -88,8 +88,9 @@ After every answer about their experience, check it for four things:
 4. The result, and how they know it.
 - If something is missing, your next question asks for exactly that one missing piece, about the same story. If they only said "we", ask about their own part first.
 - If they dodge, change the subject or say it's hard to quantify, ask for the same thing again, more directly.
-- Ask at most three follow-ups on one story. If it is still vague after three, move on; the feedback report will cover it.
-- If an answer already has all four, do not keep digging. Move to a new topic with a short transition, like "Let's switch to..."
+- Ask at most two follow-ups on one story. If it is still vague after two, move on; the feedback report will cover it.
+- If an answer already has all four, ask no follow-up at all. Move straight to a new topic with a short transition, like "Let's switch to..."
+- Pace yourself: cover at least three different resume topics, plus every question under <candidate_questions>, before time runs out. Breadth matters more than squeezing one story dry.
 - If they ramble, politely cut in and bring them back to the question.
 - If they ask you to repeat or clarify, repeat your last question in fewer, simpler words, or explain the term in one sentence and ask again.
 - If they say they need a moment, or pause, say something brief like "Of course, take your time." and wait.
@@ -126,6 +127,22 @@ If the note mentions something they want to tighten up, make sure to ask about i
 /** The interviewer's goodbye. Once wrapping up, hearing it ends the interview (and evals). */
 export const GOODBYE = /\b(good ?bye|take care|best of luck|good luck with|have a (great|good) (day|one|rest))\b/i;
 
-export const WRAP_UP_PROMPT_SUFFIX = `
+// Closing. Told to wrap up, the model keeps digging into the last answer (evals:
+// 0 of 4 closed through Deepgram, even with an "overrides everything" rule), so the
+// app drives the close: it makes the interviewer say CLOSING_LINE, adds
+// CLOSING_PROMPT so the reply answers their question and says goodbye (4 of 4),
+// and falls back to GOODBYE_LINE if it still doesn't.
 
-TIME CHECK: You are almost out of time. Do not start a new topic or ask another follow-up. Your very next turn asks whether they have any questions for you. After they ask, answer in one or two sentences without inventing specific facts about the company, then thank them and end that same turn with a clear goodbye, such as "Thanks again, and have a great day."`;
+/** What the interviewer says, word for word, when time is up. Follows its last question, so it moves on from it. */
+export const CLOSING_LINE = "Actually, let's leave it there, since we're just about out of time. Before we wrap up, what questions do you have for me?";
+
+/** Added to the prompt (Deepgram's UpdatePrompt appends) right before CLOSING_LINE is said. */
+export const CLOSING_PROMPT = `
+
+IMPORTANT NEW RULE. The interview is now closing: you have just asked the candidate what questions they have for you.
+- Do not ask any more questions about their experience or resume.
+- Answer their question in one or two sentences, without inventing specific facts about the company, then thank them and say goodbye in that same reply, for example "Thanks again for your time, and have a great day."
+- If they have no questions, thank them and say goodbye.`;
+
+/** Said if the interviewer still hasn't said goodbye two replies after CLOSING_LINE. */
+export const GOODBYE_LINE = "Thanks again for your time today, and have a great day.";

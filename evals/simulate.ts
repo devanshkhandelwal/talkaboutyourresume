@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { claude } from "@/lib/claude";
 import { getInterviewer } from "@/lib/interviewers";
-import { GOODBYE, WRAP_UP_PROMPT_SUFFIX, buildInterviewerPrompt } from "@/lib/prompts";
+import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, buildInterviewerPrompt } from "@/lib/prompts";
 import { buildAgentSettings } from "@/lib/agentSettings";
 import { DeepgramInterviewer } from "./deepgram";
 import { INJECTED_FLAG, type Candidate } from "./candidates";
@@ -10,7 +10,9 @@ import type { Fixture } from "./fixtures";
 // Runs one interview between the real interviewer and a simulated candidate.
 // By default the interviewer is a real Deepgram Voice Agent session with the
 // production Settings (prompt, model, temperature, greeting), fed the candidate's
-// answers as text; the wrap-up is the same UpdatePrompt the live page sends.
+// answers as text. The close is driven the way the live page drives it: after the
+// interviewer's next reply, add CLOSING_PROMPT and have it say CLOSING_LINE; if two
+// replies later there's still no goodbye, it says GOODBYE_LINE.
 // `backend: "claude"` instead calls the same model on the Claude API directly,
 // which is faster but skips Deepgram's handling of the conversation.
 
@@ -34,6 +36,8 @@ export type SimOptions = {
 export type SimResult = {
   transcript: Turn[];
   ended: "goodbye" | "turn_cap";
+  /** True if the app had to say GOODBYE_LINE because the interviewer didn't. */
+  fallbackGoodbye?: boolean;
   wrapStartedAt: number;
   tokens: { interviewer: Usage; candidate: Usage };
   /** Seconds the Deepgram session was open (billed per minute), 0 for the Claude backend. */
@@ -67,6 +71,19 @@ async function call(model: string, system: string, messages: Anthropic.MessagePa
   }
 }
 
+/**
+ * Deepgram's Voice Agent drops a single user message over about 1,000 characters
+ * (~150 words) and then sends the model an empty request ("Failed to think"), so
+ * simulated answers are kept under that, cut at a sentence when possible.
+ */
+function capWords(text: string, max: number): string {
+  const words = text.split(/\s+/);
+  if (words.length <= max) return text;
+  const cut = words.slice(0, max).join(" ");
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return end > cut.length / 2 ? cut.slice(0, end + 1) : cut;
+}
+
 function candidateSystem(o: SimOptions): string {
   const p = o.fixture.profile;
   return `You are ${p.name}, a candidate in a spoken job interview on a video call. ${p.headline}.
@@ -84,7 +101,8 @@ Rules:
 - Reply with only what you say out loud in this one turn. No narration or stage directions, except a brief "(long pause)" if your style calls for it.
 - Speak like a real student on a call: plain words, contractions, no lists or markdown.
 - Stay in character the whole time. You are the candidate, never the interviewer.
-- If asked whether you have questions at the end, ask one short, ordinary question.`;
+- If asked whether you have questions at the end, ask one short, ordinary question.
+- Never say more than 120 words in one turn.`;
 }
 
 export async function simulateInterview(o: SimOptions): Promise<SimResult> {
@@ -107,44 +125,67 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
     transcript = [{ role: "interviewer", text: greeting }];
   }
 
-  async function interviewerReply(answer: string, wrapping: boolean, justWrapped: boolean): Promise<string> {
-    if (dg) {
-      if (justWrapped) await dg.updatePrompt(basePrompt + WRAP_UP_PROMPT_SUFFIX);
-      return dg.say(answer);
+  let closing = false;
+
+  /** Claude messages from the transcript; consecutive turns by one speaker are merged. */
+  function messages(interviewerRole: "user" | "assistant"): Anthropic.MessageParam[] {
+    const out: Anthropic.MessageParam[] = [];
+    for (const t of transcript) {
+      const role = t.role === "interviewer" ? interviewerRole : interviewerRole === "user" ? "assistant" : "user";
+      const last = out[out.length - 1];
+      if (last && last.role === role) last.content = `${last.content} ${t.text}`;
+      else out.push({ role, content: t.text });
     }
-    const system = wrapping ? basePrompt + WRAP_UP_PROMPT_SUFFIX : basePrompt;
-    const intMessages: Anthropic.MessageParam[] = [
-      { role: "user", content: OPENING },
-      ...transcript.map((t): Anthropic.MessageParam => ({ role: t.role === "interviewer" ? "assistant" : "user", content: t.text })),
-    ];
-    return call(o.model, system, intMessages, o.temperature, 400, tokens.interviewer);
+    return out;
   }
 
-  let wrapping = false;
+  async function interviewerReply(answer: string): Promise<string> {
+    if (dg) return dg.say(answer);
+    const system = closing ? basePrompt + CLOSING_PROMPT : basePrompt;
+    return call(o.model, system, [{ role: "user", content: OPENING }, ...messages("assistant")], o.temperature, 400, tokens.interviewer);
+  }
+
+  /** A line the app makes the interviewer say word for word. */
+  async function interviewerSays(line: string, prompt?: string): Promise<string> {
+    if (!dg) return line;
+    if (prompt) await dg.addToPrompt(prompt);
+    return dg.speak(line);
+  }
+
   let wrapStartedAt = -1;
   let interviewerTurns = 1;
+  let repliesAfterClose = 0;
+  const result = (ended: SimResult["ended"], fallbackGoodbye = false): SimResult => ({
+    transcript,
+    ended,
+    fallbackGoodbye,
+    wrapStartedAt,
+    tokens,
+    deepgramSeconds: dg?.seconds() ?? 0,
+  });
   try {
     for (;;) {
       // Candidate's turn: they see the interviewer as the other speaker.
-      const candMessages: Anthropic.MessageParam[] = transcript.map((t) => ({
-        role: t.role === "interviewer" ? "user" : "assistant",
-        content: t.text,
-      }));
-      const answer = (await call(o.candidateModel, candSystem, candMessages, 1, 500, tokens.candidate)) || "(long pause)";
+      const answer = capWords((await call(o.candidateModel, candSystem, messages("user"), 1, 500, tokens.candidate)) || "(long pause)", 120);
       transcript.push({ role: "candidate", text: answer });
 
-      let justWrapped = false;
-      if (!wrapping && interviewerTurns >= o.wrapAfter) {
-        wrapping = justWrapped = true;
-        wrapStartedAt = transcript.length;
-      }
-
-      const reply = await interviewerReply(answer, wrapping, justWrapped);
+      const reply = await interviewerReply(answer);
       transcript.push({ role: "interviewer", text: reply });
       interviewerTurns++;
 
-      const done = wrapping && GOODBYE.test(reply) ? "goodbye" : interviewerTurns >= o.maxTurns ? "turn_cap" : null;
-      if (done) return { transcript, ended: done, wrapStartedAt, tokens, deepgramSeconds: dg?.seconds() ?? 0 };
+      if (closing) {
+        if (GOODBYE.test(reply)) return result("goodbye");
+        if (++repliesAfterClose >= 2) {
+          transcript.push({ role: "interviewer", text: await interviewerSays(GOODBYE_LINE) });
+          return result("goodbye", true);
+        }
+      } else if (interviewerTurns >= o.wrapAfter) {
+        // Time's up: right after this reply, the app closes, like the live page.
+        closing = true;
+        wrapStartedAt = transcript.length;
+        transcript.push({ role: "interviewer", text: await interviewerSays(CLOSING_LINE, CLOSING_PROMPT) });
+      }
+      if (interviewerTurns >= o.maxTurns) return result("turn_cap");
     }
   } finally {
     dg?.close();
