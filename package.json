@@ -6,7 +6,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "eval": "tsx evals/run.ts"
+    "eval": "tsx evals/run.ts",
+    "eval:pauses": "tsx evals/pauses.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
