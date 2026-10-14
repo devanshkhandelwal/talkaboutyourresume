@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountButton } from "./AccountButton";
 import { CreditsBadge } from "./CreditsBadge";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -12,6 +13,7 @@ export function SiteHeader({ right }: { right?: React.ReactNode }) {
         <CreditsBadge />
         {right}
         <ThemeToggle />
+        <AccountButton />
       </div>
     </header>
   );

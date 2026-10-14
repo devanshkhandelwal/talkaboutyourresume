@@ -69,6 +69,9 @@ export const EVENTS = [
   "feedback_generated",
   "feedback_failed",
   "waitlist_signup",
+  "account_created",
+  "account_deleted",
+  "interview_saved",
 ] as const;
 export type UsageEvent = (typeof EVENTS)[number] | `interviewer:${string}`;
 

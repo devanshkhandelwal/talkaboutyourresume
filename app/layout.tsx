@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, DM_Sans, Schibsted_Grotesk } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
+import { authEnabled } from "@/lib/authConfig";
 import { Analytics } from "@vercel/analytics/next";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
@@ -33,7 +35,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
-        {children}
+        {/* Optional accounts. Inside <body>, so the theme script in <head> still runs first.
+            Clerk's own UI follows the 1-bit look: ink buttons, square-ish corners, our font. */}
+        {authEnabled ? (
+          <ClerkProvider
+            appearance={{
+              variables: { colorPrimary: "#000000", borderRadius: "8px", fontFamily: "var(--font-home), system-ui, sans-serif" },
+            }}
+          >
+            {children}
+          </ClerkProvider>
+        ) : (
+          children
+        )}
         {/* Vercel Web Analytics: anonymous page views, no cookies. */}
         <Analytics />
       </body>
