@@ -1,9 +1,42 @@
+import type { ReactNode } from "react";
+import { Highlighted } from "@/components/FillerWords";
+import type { FillerReport } from "@/lib/fillers";
 import type { NerdStats } from "@/lib/nerdStats";
+import type { TranscriptLine } from "@/lib/types";
 
 /** Collapsible numbers about the conversation, for people who like numbers. */
-export function StatsForNerds({ stats: s }: { stats: NerdStats }) {
+export function StatsForNerds({ stats: s, fillers, transcript }: { stats: NerdStats; fillers: FillerReport; transcript: TranscriptLine[] }) {
   const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
-  const groups: { title: string; rows: [string, string, string?][] }[] = [
+  const { byWord, worst, matches } = fillers;
+  const fillerDetail =
+    s.fillers === 0 ? (
+      "none in your answers"
+    ) : (
+      <>
+        <span style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 0" }}>
+          {byWord.map((w) => (
+            <span key={w.label} className="chip chip-neutral">
+              &ldquo;{w.label}&rdquo; × {w.count}
+            </span>
+          ))}
+        </span>
+        {worst && (
+          <span style={{ display: "block", marginTop: 10 }}>
+            Most in one answer: {worst.count}
+            {worst.question && <span style={{ display: "block" }}>Asked: {worst.question}</span>}
+            <span className="muted" style={{ display: "block", marginTop: 4 }}>
+              {worst.lines.map((i, n) => (
+                <span key={i}>
+                  {n > 0 && " "}
+                  <Highlighted text={transcript[i]?.content ?? ""} matches={matches[i]} />
+                </span>
+              ))}
+            </span>
+          </span>
+        )}
+      </>
+    );
+  const groups: { title: string; rows: [string, string, ReactNode?][] }[] = [
     {
       title: "You",
       rows: [
@@ -12,9 +45,9 @@ export function StatsForNerds({ stats: s }: { stats: NerdStats }) {
         ["Share of the talking", `${s.yourShare}%`, "you vs the interviewer; candidates usually do most of the talking"],
         ["Answers", `${s.answers}, ${s.avgAnswerWords} words${s.avgAnswerSec === null ? "" : ` / ${s.avgAnswerSec} s`} on average`],
         ...(s.longestAnswer
-          ? ([["Longest answer", `${s.longestAnswer.words} words${s.longestAnswer.sec === null ? "" : ` / ${s.longestAnswer.sec} s`}`, `“${s.longestAnswer.preview}…”`]] as [string, string, string][])
+          ? ([["Longest answer", `${s.longestAnswer.words} words${s.longestAnswer.sec === null ? "" : ` / ${s.longestAnswer.sec} s`}`, `“${s.longestAnswer.preview}…”`]] as [string, string, ReactNode][])
           : []),
-        ["Filler words", `${s.fillers} (${s.fillersPerMinute}/min)`],
+        ["Filler words", `${s.fillers} (${s.fillersPerMinute}/min)`, fillerDetail],
         ["“I” vs “we”", `${s.iCount} : ${s.weCount}`, "who your answers credit"],
         ["Hedges", String(s.hedges), "“I think”, “maybe”, “kind of”…"],
         ["Numbers mentioned", String(s.numbers), "a rough signal of how specific you were"],
@@ -39,8 +72,8 @@ export function StatsForNerds({ stats: s }: { stats: NerdStats }) {
                 [s.latency.stt !== null && `speech-to-text ${s.latency.stt} s`, s.latency.llm !== null && `model ${s.latency.llm} s`, s.latency.tts !== null && `voice ${s.latency.tts} s`].filter(Boolean).join(" · ") || "not reported",
                 "averages per turn",
               ],
-            ] as [string, string, string][])
-          : ([["Response time", "not recorded", "only interviews from now on have it"]] as [string, string, string][])),
+            ] as [string, string, ReactNode][])
+          : ([["Response time", "not recorded", "only interviews from now on have it"]] as [string, string, ReactNode][])),
       ],
     },
   ];
@@ -61,7 +94,7 @@ export function StatsForNerds({ stats: s }: { stats: NerdStats }) {
                   <dd style={{ margin: 0, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                     {value}
                     {note && (
-                      <span className="subtle" style={{ display: "block", fontWeight: 400 }}>
+                      <span className="subtle" style={{ display: "block", fontWeight: 400, fontVariantNumeric: "normal" }}>
                         {note}
                       </span>
                     )}

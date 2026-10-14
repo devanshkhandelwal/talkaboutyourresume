@@ -34,7 +34,7 @@
 - **A real ending:** when time is up, the app makes the interviewer ask for your questions, answer briefly and say goodbye, instead of being cut off mid-question.
 - **Feedback that's specific:** verdict and tip per answer, your best line quoted, the first sentence a weak answer should have had, and a retry of your weakest answer.
 - **Resume heatmap:** your resume text with every discussed claim colored by its verdict. Tap one for the question and tip.
-- **Filler words** ("you know", "basically", "like,") counted per answer and per minute.
+- **Filler words** ("um", "you know", "basically", "like,") counted per answer and per minute, under Stats for nerds, and highlighted in the transcript.
 - **Stats for nerds:** measured speaking pace, talk time and share, answer lengths, "I" vs "we", hedges, numbers mentioned, and the interviewer's response time split into speech-to-text, model and voice.
 - **Optional accounts** (Google sign-in): each interview's score and feedback saved to a profile with a progress chart.
 - **Share card and calendar invite:** a 1080 × 1080 result image, and a Google Calendar or .ics invite for the next practice.
@@ -197,7 +197,6 @@ Deepgram's Voice Agent is about **$0.075 a minute**, which includes the intervie
 
 - The 15-minute cap is enforced in the browser; a modified client could keep a voice session open. Cap spend in the Deepgram console.
 - Daily limits are per IP address, which a campus network shares.
-- "Um" and "uh" can't be counted: Deepgram's voice agent drops them.
 - Thinking pauses of 4 seconds or more can still be cut in on; the interviewer then says "take your time".
 - Deepgram drops a single typed message over ~1,000 characters; whether very long nonstop speech hits the same limit is unverified.
 - The interviewer has an eval suite (`npm run eval`), but there are no automated tests for the routes or feedback-quality evals yet.
