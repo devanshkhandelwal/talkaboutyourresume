@@ -200,7 +200,7 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal) {
   rect(119, 64, 2, 1, I);
   rect(120, 65, 1, 2, I);
   rect(119, 67, 2, 1, I);
-  for (const [x, y] of [[114, 59], [115, 58], [116, 57]]) px(x, y, I);
+  for (const [x, y] of [[115, 59], [116, 58], [117, 57]]) px(x, y, I);
 
   // Laptop on the desk: the one colorful thing in the room, a video call.
   const sx = 125;
