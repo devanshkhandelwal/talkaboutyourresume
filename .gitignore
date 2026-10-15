@@ -9,3 +9,7 @@ out
 next-env.d.ts
 .DS_Store
 .clerk/
+
+# OpenRig
+.openrig/
+CLAUDE.local.md

@@ -1,0 +1,45 @@
+version: "0.2"
+name: tayr
+summary: >
+  Two Claude Code agents for talkaboutyourresume: a builder that takes one change at a
+  time to a pull request, and a reviewer that checks each change before it's called done.
+  Based on OpenRig's starter team. Launch from the repository root with `rig up rig/rig.yaml`.
+
+culture_file: CULTURE.md
+
+# Keep OpenRig's instruction blocks out of tracked files.
+managed_blocks:
+  claude-code: CLAUDE.local.md
+
+pods:
+  - id: dev
+    label: talkaboutyourresume
+    members:
+      - id: build
+        label: Builder
+        agent_ref: "path:/opt/homebrew/lib/node_modules/@openrig/cli/daemon/specs/agents/development/implementer"
+        runtime: claude-code
+        profile: default
+        cwd: ".."
+        startup:
+          files:
+            - path: guidance/build.md
+              delivery_hint: send_text
+              required: true
+      - id: review
+        label: Reviewer
+        agent_ref: "path:/opt/homebrew/lib/node_modules/@openrig/cli/daemon/specs/agents/development/qa"
+        runtime: claude-code
+        profile: default
+        cwd: ".."
+        startup:
+          files:
+            - path: guidance/review.md
+              delivery_hint: send_text
+              required: true
+    edges:
+      - kind: delegates_to
+        from: build
+        to: review
+
+edges: []
