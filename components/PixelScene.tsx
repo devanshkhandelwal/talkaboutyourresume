@@ -2,11 +2,16 @@
 
 import { useEffect, useRef } from "react";
 import { dayKey, getPracticedDays } from "@/lib/practice";
+import { currentTheme, setTheme } from "@/lib/theme";
 
 // A minimal 1-bit pixel-art room, drawn at low resolution and scaled up crisply:
 // a desk with a coffee mug, a pendant lamp, a window and a wall calendar for
 // this month with the practiced days crossed off. Everything is black or white;
 // the only color is the laptop's video call. Dark mode inverts the room.
+// Small things to find: the window follows the visitor's clock (a sun by day, a
+// moon and stars at night, when the lamp throws light), clicking the lamp turns
+// it off (dark mode), a plant grows with the days practiced, the interviewer
+// blinks, and the coffee cools unless you click the mug to top it up.
 // The room is laid out on a 192 x 108 grid and placed on a larger 240 x 135 canvas
 // (offset by OX, OY), so pixels stay fine and there's open wall around it.
 const W = 240;
@@ -20,7 +25,7 @@ type Px = (x: number, y: number, c: string) => void;
 
 // The interviewer on the video call, 20 x 24 pixels: hair with a highlight,
 // ears, brows, eyes, a nose shadow, a smile, a navy blazer over a white collar.
-function drawPerson(px: Px, ox: number, oy: number) {
+function drawPerson(px: Px, ox: number, oy: number, blink: boolean) {
   const C: Record<string, string> = {
     h: "#2b1d16", H: "#4a3426", l: "#8d5a3b", L: "#a26c48", S: "#6e4329",
     e: "#17171d", b: "#2b1d16", m: "#5a2a22", w: "#eef1f6", j: "#1e2a5a", J: "#141d42",
@@ -66,8 +71,8 @@ function drawPerson(px: Px, ox: number, oy: number) {
   dot(2, 9, "S");
   dot(17, 8, "S");
   dot(17, 9, "S");
-  dot(7, 9, "e");
-  dot(12, 9, "e");
+  dot(7, 9, blink ? "l" : "e");
+  dot(12, 9, blink ? "l" : "e");
   seg(10, 3, 16, "l");
   dot(10, 10, "S");
   seg(11, 4, 15, "l");
@@ -112,7 +117,38 @@ function monthCal(now: Date): Cal {
   return { first: new Date(y, m, 1).getDay(), days: new Date(y, m + 1, 0).getDate(), today, crossed, shown: crossed.length, todayOn: true };
 }
 
-function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal) {
+type Fx = {
+  /** Local hour with minutes as a fraction, which places the sun. */
+  hour: number;
+  /** Interviewer's eyes closed this frame. */
+  blink: boolean;
+  /** Steam pixels showing, 3 when hot down to 0 when cold, and which way they lean. */
+  steam: number;
+  sway: 0 | 1;
+  /** Days practiced in this browser, all time. */
+  practiced: number;
+};
+
+const isNight = (hour: number) => hour < 6 || hour >= 19;
+const localHour = (d = new Date()) => d.getHours() + d.getMinutes() / 60;
+
+// Grid areas you can click (the 192 x 108 grid): the lamp and the mug.
+const LAMP = { x0: 116, x1: 141, y0: 0, y1: 18 };
+const MUG = { x0: 110, x1: 122, y0: 55, y1: 70 };
+const inside = (a: typeof LAMP, x: number, y: number) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1;
+
+// A crescent moon (5 x 5) and stars, in grid coordinates.
+const MOON = [".###.", "##...", "#....", "##...", ".###."];
+const STARS = [[150, 13], [156, 20], [159, 12], [168, 22], [151, 36], [158, 42], [168, 33], [175, 39], [178, 31], [155, 31]];
+// The sun: a 4 x 4 disc with four short rays.
+const SUN = ["...##...", "........", "..####..", "#.####.#", "#.####.#", "..####..", "........", "...##..."];
+// Steam rising from the mug, leaning one way then the other.
+const STEAM: [number, number][][] = [
+  [[114, 59], [115, 58], [116, 57]],
+  [[115, 59], [114, 58], [115, 57]],
+];
+
+function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
   const I = dark ? "#ffffff" : "#000000"; // ink
   const P = dark ? "#000000" : "#ffffff"; // paper
   const px: Px = (x, y, c) => {
@@ -145,16 +181,39 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal) {
   // Everything else is laid out on the 192 x 108 grid, shifted toward the lower right.
   ctx.setTransform(1, 0, 0, 1, OX, OY);
 
-  // Window: a plain frame with a cross of mullions and a sill.
+  // Window: a plain frame with a cross of mullions and a sill. The sky follows the
+  // visitor's clock: a sun that crosses the panes from 6 am to 7 pm, then a moon
+  // and stars in a black sky (black in both themes, so the night reads as night).
+  const night = isNight(fx.hour);
   box(146, 8, 36, 40);
+  if (night) {
+    for (const [x, y] of [[148, 10], [166, 10], [148, 30], [166, 30]]) rect(x, y, 14, 16, "#000000");
+    MOON.forEach((row, y) => [...row].forEach((c, x) => c === "#" && px(172 + x, 12 + y, "#ffffff")));
+    for (const [x, y] of STARS) px(x, y, "#ffffff");
+  } else {
+    // Morning in the left panes, afternoon in the right, never behind the mullion.
+    const t = Math.min(1, Math.max(0, (fx.hour - 6) / 13));
+    const slot = Math.round(t * 15);
+    const sunX = slot < 8 ? 147 + slot : 158 + slot;
+    const sunY = Math.round(10 + Math.abs(t - 0.5) * 2 * 12);
+    SUN.forEach((row, y) => [...row].forEach((c, x) => c === "#" && px(sunX + x, sunY + y, I)));
+  }
   rect(163, 9, 2, 38, I);
   rect(147, 27, 34, 2, I);
   rect(143, 48, 42, 2, I);
 
-  // Pendant lamp.
+  // Pendant lamp. Its bulb is paper-colored, so it reads as on in the light theme
+  // and off in the dark one; click it to switch. At night, when it's on, it throws
+  // a dithered cone of light down to the desk.
   rect(128, 2, 1, 9, I);
   for (let y = 0; y < 6; y++) rect(124 - y, 11 + y, 9 + y * 2, 1, I);
   rect(126, 17, 5, 1, P);
+  if (night && !dark) {
+    for (let y = 20; y < TOP - 2; y += 3) {
+      const half = 7 + Math.floor((y - 17) * 0.4);
+      for (let x = 128 - half; x <= 128 + half; x++) if ((x + y) % 6 === 0) px(x, y, I);
+    }
+  }
 
   // A wall calendar on a nail: a solid header with two rings, then this month's
   // days. Practiced days are crossed out (or, before any practice, the days gone
@@ -194,13 +253,38 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal) {
   rect(170, TOP + 10, 4, 1, I);
   rect(170, TOP + 19, 4, 1, I);
 
-  // Mug with steam.
+  // Mug with steam. The steam sways while the coffee is hot, then thins out from
+  // the top as it cools.
   box(112, 62, 7, 8);
   rect(113, 63, 5, 1, I);
   rect(119, 64, 2, 1, I);
   rect(120, 65, 1, 2, I);
   rect(119, 67, 2, 1, I);
-  for (const [x, y] of [[114, 59], [115, 58], [116, 57]]) px(x, y, I);
+  for (const [x, y] of STEAM[fx.sway].slice(0, fx.steam)) px(x, y, I);
+
+  // A potted plant to the right of the laptop: a sprout at first, then a leaf for
+  // each day practiced (up to five), and a flower once you've practiced a week.
+  const leaves = Math.min(5, fx.practiced);
+  const stemTop = 61 - 2 * leaves;
+  rect(175, 63, 8, 2, I);
+  box(176, 64, 6, 6);
+  rect(178, stemTop, 1, 63 - stemTop, I);
+  px(177, 61, I);
+  px(176, 60, I);
+  px(179, 61, I);
+  px(180, 60, I);
+  for (let i = 1; i <= leaves; i++) {
+    const y = 61 - 2 * i;
+    const side = i % 2 ? -1 : 1;
+    px(178 + side, y, I);
+    px(178 + 2 * side, y - 1, I);
+  }
+  if (fx.practiced >= 7) {
+    px(178, stemTop - 3, I);
+    px(177, stemTop - 2, I);
+    px(179, stemTop - 2, I);
+    px(178, stemTop - 1, I);
+  }
 
   // Laptop on the desk: the one colorful thing in the room, a video call.
   const sx = 125;
@@ -216,7 +300,7 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal) {
   rect(sx + 33, sy + 3, 8, 7, "#2b2f38");
   rect(sx + 34, sy + 4, 6, 5, "#9cc2e2");
   rect(sx + 34, sy + 7, 6, 2, "#57b06f");
-  drawPerson(px, sx + 12, sy + 5);
+  drawPerson(px, sx + 12, sy + 5, fx.blink);
   rect(sx + 37, sy + 25, 3, 2, "#3dd6b8");
   rect(sx - 6, TOP - 1, 56, 1, I);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -230,28 +314,85 @@ export function PixelScene({ position = "100% 50%" }: { position?: string }) {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     const cal = monthCal(new Date());
-    const render = () => draw(ctx, document.documentElement.dataset.theme === "dark", cal);
-    // The calendar's X's are drawn in one at a time, then today's square blinks
-    // three times and stays. Reduced motion gets the finished calendar.
+    const fx: Fx = { hour: localHour(), blink: false, steam: 3, sway: 0, practiced: getPracticedDays().length };
+    const render = () => draw(ctx, currentTheme() === "dark", cal, fx);
     const timers: number[] = [];
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const later = (fn: () => void, ms: number) => timers.push(window.setTimeout(fn, ms));
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Hot coffee for 30 seconds, then one steam pixel fades every 2.5 seconds.
+    let hotUntil = Date.now() + 30_000;
+    if (!reduced) {
+      // The calendar's X's are drawn in one at a time, then today's square blinks
+      // three times and stays. Reduced motion gets the finished calendar.
       const step = Math.min(90, 900 / Math.max(1, cal.crossed.length));
       cal.shown = 0;
       cal.todayOn = false;
-      for (let i = 1; i <= cal.crossed.length; i++) timers.push(window.setTimeout(() => ((cal.shown = i), render()), 400 + i * step));
+      for (let i = 1; i <= cal.crossed.length; i++) later(() => ((cal.shown = i), render()), 400 + i * step);
       const end = 400 + cal.crossed.length * step;
-      for (let i = 1; i <= 6; i++) timers.push(window.setTimeout(() => ((cal.todayOn = i % 2 === 1), render()), end + i * 260));
-      timers.push(window.setTimeout(() => ((cal.todayOn = true), render()), end + 7 * 260));
+      for (let i = 1; i <= 6; i++) later(() => ((cal.todayOn = i % 2 === 1), render()), end + i * 260);
+      later(() => ((cal.todayOn = true), render()), end + 7 * 260);
+
+      // The interviewer blinks every 2.5 to 6 seconds.
+      const blink = () => {
+        fx.blink = true;
+        render();
+        later(() => ((fx.blink = false), render()), 140);
+        later(blink, 2500 + Math.random() * 3500);
+      };
+      later(blink, 2000);
+
+      timers.push(
+        window.setInterval(() => {
+          const over = Date.now() - hotUntil;
+          const steam = over < 0 ? 3 : Math.max(0, 3 - Math.ceil(over / 2500));
+          if (steam === 0 && fx.steam === 0) return;
+          fx.steam = steam;
+          fx.sway = fx.sway ? 0 : 1;
+          render();
+        }, 700),
+      );
     }
+    // The sky moves with the clock.
+    timers.push(window.setInterval(() => ((fx.hour = localHour()), render()), 60_000));
     render();
-    // Redraw inverted when the theme toggle switches to dark.
+
+    // Clicks land on the 192 x 108 grid: undo the canvas's object-fit: cover and
+    // object-position, then the room's offset.
+    const [posX, posY] = position.split(/\s+/).map((v) => parseFloat(v) / 100);
+    const toGrid = (e: MouseEvent) => {
+      const r = canvas.getBoundingClientRect();
+      const scale = Math.max(r.width / W, r.height / H);
+      const x = (e.clientX - r.left - (r.width - W * scale) * (posX ?? 0.5)) / scale - OX;
+      const y = (e.clientY - r.top - (r.height - H * scale) * (posY ?? 0.5)) / scale - OY;
+      return [x, y] as const;
+    };
+    const onClick = (e: MouseEvent) => {
+      const [x, y] = toGrid(e);
+      if (inside(LAMP, x, y)) setTheme(currentTheme() === "dark" ? "light" : "dark");
+      else if (inside(MUG, x, y)) {
+        hotUntil = Date.now() + 30_000;
+        fx.steam = 3;
+        render();
+      }
+    };
+    const onMove = (e: MouseEvent) => {
+      const [x, y] = toGrid(e);
+      canvas.style.cursor = inside(LAMP, x, y) || inside(MUG, x, y) ? "pointer" : "";
+    };
+    canvas.addEventListener("click", onClick);
+    canvas.addEventListener("mousemove", onMove);
+
+    // Redraw inverted when the theme switches.
     const mo = new MutationObserver(render);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => {
       mo.disconnect();
-      timers.forEach(clearTimeout);
+      timers.forEach((t) => (clearTimeout(t), clearInterval(t)));
+      canvas.removeEventListener("click", onClick);
+      canvas.removeEventListener("mousemove", onMove);
     };
-  }, []);
+  }, [position]);
 
   return (
     <canvas
