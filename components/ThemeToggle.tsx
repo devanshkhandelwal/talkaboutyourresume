@@ -1,35 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { THEME_COLOR, THEME_KEY, type Theme } from "@/lib/theme";
-
-function apply(theme: Theme) {
-  const root = document.documentElement;
-  if (theme === "dark") root.dataset.theme = "dark";
-  else delete root.dataset.theme;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOR[theme]);
-}
+import { currentTheme, setTheme as applyTheme, type Theme } from "@/lib/theme";
 
 export function ThemeToggle() {
   // Unknown until mounted: the server can't see the saved choice.
   const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
-    const current: Theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-    apply(current);
-    setTheme(current);
+    setTheme(currentTheme());
+    // Stay in sync when something else switches the theme (the lamp on the home page).
+    const mo = new MutationObserver(() => setTheme(currentTheme()));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => mo.disconnect();
   }, []);
 
   function toggle() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    apply(next);
-    setTheme(next);
-    try {
-      if (next === "dark") localStorage.setItem(THEME_KEY, "dark");
-      else localStorage.removeItem(THEME_KEY);
-    } catch {
-      // Storage can be blocked; the toggle still works for this visit.
-    }
+    applyTheme(currentTheme() === "dark" ? "light" : "dark");
   }
 
   const dark = theme === "dark";
