@@ -13,7 +13,7 @@ import { DEFAULT_POLICY, InterviewController } from "@/lib/interviewControl";
 import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE } from "@/lib/prompts";
 import { store } from "@/lib/store";
 import { InterviewAgent, type AgentStatus } from "@/lib/voice/agent";
-import type { ResumeProfile, TranscriptLine } from "@/lib/types";
+import type { InterviewSession, ResumeProfile, TranscriptLine } from "@/lib/types";
 
 
 type Phase = "lobby" | "starting" | "live" | "ending";
@@ -44,6 +44,8 @@ export default function InterviewPage() {
 
   const agentRef = useRef<InterviewAgent | null>(null);
   const maxMsRef = useRef(0);
+  /** Set when the interviewer ended the call itself (end_interview). */
+  const endedByRef = useRef<InterviewSession["endedBy"]>(undefined);
   const linesRef = useRef<TranscriptLine[]>([]);
   const startedAt = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -146,6 +148,7 @@ export default function InterviewPage() {
       endedAt: Date.now(),
       transcript: linesRef.current,
       voice: agentRef.current?.voiceStats(),
+      endedBy: endedByRef.current,
     });
     store.setReport(null);
     // Anonymous count of finished calls; sendBeacon survives the page change.
@@ -236,6 +239,10 @@ export default function InterviewPage() {
         },
         onError: (msg) => setError(msg),
         onVoiceTime: (ms) => costLedger.addVoiceMs(ms),
+        onInterviewerEnded: (reason) => {
+          endedByRef.current = { by: "interviewer", reason };
+          finishRef.current();
+        },
       });
       agentRef.current = agent;
       await agent.start(data.token, data.settings);

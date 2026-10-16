@@ -109,7 +109,9 @@ export default function FeedbackPage() {
     setSession(s);
     // Cross today off the calendar once there's a real interview to count.
     const answered = s?.transcript.filter((l) => l.role === "user").length ?? 0;
-    setPracticed(s && answered >= 2 ? recordPractice(new Date(s.endedAt ?? Date.now())) : getPracticedDays());
+    // An interview the interviewer ended for abuse isn't practice, and gets no report.
+    const conduct = s?.endedBy?.reason === "abusive";
+    setPracticed(s && answered >= 2 && !conduct ? recordPractice(new Date(s.endedAt ?? Date.now())) : getPracticedDays());
     const r = store.getReport();
     setCost(costLedger.get());
     // The heatmap needs the resume text and claim ids; resumes read before it shipped have neither.
@@ -122,7 +124,7 @@ export default function FeedbackPage() {
       return;
     }
     const userTurns = s?.transcript.filter((l) => l.role === "user").length ?? 0;
-    if (!s || userTurns < 2) return;
+    if (!s || userTurns < 2 || conduct) return;
     fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -211,6 +213,8 @@ export default function FeedbackPage() {
 
   const interviewer = getInterviewer(session.interviewerId);
   const tooShort = session.transcript.filter((l) => l.role === "user").length < 2;
+  const conduct = session.endedBy?.reason === "abusive";
+  const noReport = tooShort || conduct;
   const fillers = analyzeFillers(session.transcript);
   const total = report?.answers.length ?? 0;
   const strong = report?.answers.filter((a) => a.verdict === "strong").length ?? 0;
@@ -247,16 +251,28 @@ export default function FeedbackPage() {
         )}
 
         <h1 className="display h2" style={{ marginTop: 32 }}>
-          {tooShort ? "That was a short one." : "Nice work. Here's how it went."}
+          {conduct ? "The interviewer ended this interview." : tooShort ? "That was a short one." : "Nice work. Here's how it went."}
         </h1>
 
-        {tooShort && (
+        {conduct && (
+          <p className="muted" style={{ fontSize: "1.125rem" }}>
+            It stopped after the conversation stayed unprofessional following a warning, so there&apos;s no report for it. Practice again whenever you&apos;re ready.
+          </p>
+        )}
+
+        {session.endedBy?.reason === "candidate_asked" && !tooShort && (
+          <p className="muted" style={{ fontSize: "1.125rem" }}>
+            You asked to end early, so this covers the answers you gave.
+          </p>
+        )}
+
+        {tooShort && !conduct && (
           <p className="muted" style={{ fontSize: "1.125rem" }}>
             We need a few answers to give you useful feedback. Try a full interview when you have 10 to 15 minutes.
           </p>
         )}
 
-        {!tooShort && !report && !error && <ReviewSteps />}
+        {!noReport && !report && !error && <ReviewSteps />}
 
         {error && (
           <p className="error" role="alert" style={{ marginTop: 24 }}>
@@ -345,7 +361,7 @@ export default function FeedbackPage() {
           </>
         )}
 
-        {!tooShort && <StatsForNerds stats={computeNerdStats(session)} fillers={fillers} transcript={session.transcript} />}
+        {!noReport && <StatsForNerds stats={computeNerdStats(session)} fillers={fillers} transcript={session.transcript} />}
 
         <details style={{ marginTop: 20 }}>
           <summary style={{ cursor: "pointer", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>Read the full transcript</summary>
@@ -409,13 +425,13 @@ export default function FeedbackPage() {
         </div>
 
         <aside aria-label="Your practice" className="aside-sticky">
-          {report && total > 0 && !tooShort && <SaveInterview session={session} report={report} />}
+          {report && total > 0 && !noReport && <SaveInterview session={session} report={report} />}
           {cost && (cost.voiceMs > 0 || cost.claude.length > 0) && (
             <section aria-labelledby="cost-title" className="card" style={{ padding: 20 }}>
               <h2 id="cost-title" style={{ margin: "0 0 10px", fontSize: "1.125rem", fontWeight: 600 }}>
                 What this interview cost
               </h2>
-              <CostRows b={costBreakdown(cost)} feedback={!tooShort && !report && !error ? "pending" : "none"} />
+              <CostRows b={costBreakdown(cost)} feedback={!noReport && !report && !error ? "pending" : "none"} />
             </section>
           )}
           <section aria-labelledby="month-title" className="card" style={{ padding: 20 }}>

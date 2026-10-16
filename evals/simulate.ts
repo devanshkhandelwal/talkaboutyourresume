@@ -40,7 +40,9 @@ export type SimOptions = {
 
 export type SimResult = {
   transcript: Turn[];
-  ended: "goodbye" | "turn_cap";
+  ended: "goodbye" | "turn_cap" | "interviewer_ended";
+  /** Why the interviewer ended it (end_interview), if it did. */
+  endedBy?: string;
   /** True if the app had to say GOODBYE_LINE because the interviewer didn't. */
   fallbackGoodbye?: boolean;
   wrapStartedAt: number;
@@ -184,6 +186,7 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
     tokens,
     deepgramSeconds: dg?.seconds() ?? 0,
     control: control ? { log: control.log, notes: control.notes } : undefined,
+    endedBy: dg?.endedBy ?? undefined,
   });
   try {
     for (;;) {
@@ -209,6 +212,9 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
       if (moveOn) reply = `${reply} ${await interviewerSays(moveOn)}`;
       transcript.push({ role: "interviewer", text: reply });
       interviewerTurns++;
+      // The interviewer ended the call itself; give a late function call a moment to arrive.
+      if (dg && !dg.endedBy) await new Promise((r) => setTimeout(r, 300));
+      if (dg?.endedBy) return result("interviewer_ended");
 
       if (closing) {
         if (GOODBYE.test(reply)) return result("goodbye");

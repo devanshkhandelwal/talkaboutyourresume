@@ -3,7 +3,7 @@
 import type { TranscriptLine, TurnLatency, VoiceStats } from "../types";
 import { recording } from "./recording";
 import { readLevel } from "./level";
-import { AGENT_URL } from "@/lib/agentSettings";
+import { AGENT_URL, type EndReason } from "@/lib/agentSettings";
 
 export type AgentStatus =
   | "connecting"
@@ -22,6 +22,8 @@ export type AgentEvents = {
   onVoiceTime?: (ms: number) => void;
   /** The candidate started a new answer (their first speech since their last line). */
   onTurnStart?: () => void;
+  /** The interviewer ended the interview itself (end_interview), after its closing line played. */
+  onInterviewerEnded?: (reason: EndReason) => void;
 };
 
 const OUTPUT_RATE = 24000;
@@ -68,6 +70,9 @@ export class InterviewAgent {
   /** Text appended to the prompt with UpdatePrompt (the close), kept across swaps. */
   private promptAdditions: string[] = [];
   private steering = false;
+  /** An end_interview call waiting for the closing line to finish playing. */
+  private pendingEnd: { id: string; reason: EndReason } | null = null;
+  private endTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private events: AgentEvents) {}
 
@@ -202,6 +207,7 @@ export class InterviewAgent {
       ttt_text_latency?: number;
       ttt_token_latency?: number;
       tts_latency?: number;
+      functions?: { id: string; name: string; arguments?: string; client_side?: boolean }[];
     };
     try {
       msg = JSON.parse(raw);
@@ -268,12 +274,39 @@ export class InterviewAgent {
           if (!this.ended) this.events.onStatus(this.muted ? "muted" : "listening");
           // The interviewer just finished talking: the natural moment to close.
           if (this.pendingClose) this.flushClose();
+          // If the interviewer just said its closing line, hang up shortly after.
+          if (this.pendingEnd) this.scheduleEnd(600);
         }, wait);
         break;
       }
       case "InjectionRefused":
         // Someone was talking; try the close again at the next pause.
         if (this.lastClose && !this.pendingClose) this.pendingClose = this.lastClose;
+        break;
+      case "FunctionCallRequest":
+        for (const f of msg.functions ?? []) {
+          if (!f.client_side) continue;
+          if (f.name !== "end_interview") {
+            this.sendJson({ type: "FunctionCallResponse", id: f.id, name: f.name, content: "Unknown function." });
+            continue;
+          }
+          let reason: EndReason = "candidate_asked";
+          try {
+            if (JSON.parse(f.arguments ?? "{}").reason === "abusive") reason = "abusive";
+          } catch {
+            // keep the default
+          }
+          this.sendJson({ type: "FunctionCallResponse", id: f.id, name: f.name, content: "The interview has ended. Say nothing more." });
+          this.pendingEnd = { id: f.id, reason };
+          this.scheduleEnd(2500);
+        }
+        break;
+      case "FunctionCallCancelled":
+        // The candidate kept talking before their turn was confirmed: the call is void.
+        if (this.pendingEnd && msg.functions?.some((f) => f.id === this.pendingEnd!.id)) {
+          this.pendingEnd = null;
+          if (this.endTimer) clearTimeout(this.endTimer);
+        }
         break;
       case "Error":
         console.warn("[voice] Deepgram error", msg);
@@ -401,6 +434,22 @@ export class InterviewAgent {
     this.sendJson({ type: "InjectAgentMessage", message });
   }
 
+  /**
+   * Ends the call for end_interview once the interviewer is quiet: its closing line
+   * may come before or after the function call, so wait for it to finish playing.
+   */
+  private scheduleEnd(ms: number) {
+    if (this.endTimer) clearTimeout(this.endTimer);
+    this.endTimer = setTimeout(() => {
+      const end = this.pendingEnd;
+      if (!end || this.ended) return;
+      // Still talking: AgentAudioDone will schedule this again.
+      if (this.agentSpeaking || this.agentThinking) return;
+      this.pendingEnd = null;
+      this.events.onInterviewerEnded?.(end.reason);
+    }, ms);
+  }
+
   /** Response times and audio received, for the results page's Stats for nerds. */
   voiceStats(): VoiceStats {
     return { latencies: [...this.latencies], interviewerAudioMs: Math.round((this.interviewerSamples / OUTPUT_RATE) * 1000) };
@@ -425,6 +474,7 @@ export class InterviewAgent {
     // Count up to now: the socket closes asynchronously, after the page may have moved on.
     this.closeVoiceClock();
     if (this.keepAlive) clearInterval(this.keepAlive);
+    if (this.endTimer) clearTimeout(this.endTimer);
     this.stopPlayback();
     this.node?.disconnect();
     if (this.recorder?.state === "recording") this.recorder.stop();

@@ -21,6 +21,25 @@ export function thinkModel(): string {
 export const LISTEN = { eotThreshold: 0.9, eotTimeoutMs: 7000 };
 
 /**
+ * Lets the interviewer end the call itself: after one warning when the candidate is
+ * abusive, or when they ask to stop (rules in lib/prompts.ts). Client-side (no
+ * endpoint), so the browser hangs up after the closing line; deferred until the
+ * candidate's turn is confirmed, since ending can't be undone.
+ */
+export const END_INTERVIEW = {
+  name: "end_interview",
+  description:
+    "End the interview now. Only after the candidate was abusive again despite one warning, or when they clearly asked to stop. Say a short closing line before calling it.",
+  parameters: {
+    type: "object",
+    properties: { reason: { type: "string", enum: ["abusive", "candidate_asked"] } },
+    required: ["reason"],
+  },
+  defer_until_eot: true,
+};
+export type EndReason = "abusive" | "candidate_asked";
+
+/**
  * The Settings message that configures a Deepgram Voice Agent session: listening,
  * the interviewer's brain and voice, and the spoken greeting. Shared by
  * /api/session (live interviews) and evals/ (simulated ones), so evals test
@@ -58,6 +77,7 @@ export function buildAgentSettings(o: { interviewer: Interviewer; prompt: string
           temperature: o.temperature ?? THINK_TEMPERATURE,
         },
         prompt: o.prompt,
+        functions: [END_INTERVIEW],
       },
       speak: {
         provider: { type: "deepgram", model: o.interviewer.voice, speed: o.interviewer.speed },

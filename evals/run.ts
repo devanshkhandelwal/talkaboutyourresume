@@ -254,6 +254,20 @@ const METRICS: Metric[] = [
     },
   },
   {
+    id: "ended_early",
+    label: "Interviewer ended the interview early (end_interview)",
+    // No simulated candidate is abusive or asks to stop, so any early ending is a false alarm.
+    target: "0",
+    higherIsBetter: false,
+    compute: (o) => {
+      const s = scored(o);
+      if (!s.length) return { text: "n/a", value: null, pass: null };
+      const ended = s.filter((x) => x.sim.ended === "interviewer_ended");
+      const list = ended.map((x) => `${x.id} (${x.sim.endedBy})`).join(", ");
+      return { text: `${ended.length} of ${s.length}${list ? `: ${list}` : ""}`, value: ended.length, pass: ended.length === 0 };
+    },
+  },
+  {
     id: "closes",
     label: "Closes properly (asks for their questions, says goodbye)",
     target: "100%",
@@ -489,6 +503,7 @@ async function main() {
           tokens: x.sim?.tokens,
           deepgramSeconds: x.sim?.deepgramSeconds,
           control: x.sim?.control,
+          endedBy: x.sim?.endedBy,
           judgeTokens: x.score?.judgeTokens,
           verdicts: x.score?.verdicts,
           checks: x.score?.checks,

@@ -90,6 +90,8 @@ export type InterviewSession = {
   transcript: TranscriptLine[];
   /** Missing on sessions recorded before Stats for nerds. */
   voice?: VoiceStats;
+  /** Set when the interviewer ended the call itself (end_interview). */
+  endedBy?: { by: "interviewer"; reason: "abusive" | "candidate_asked" };
 };
 
 /** Public response of /api/deepgram-balance. */
