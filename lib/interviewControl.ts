@@ -226,3 +226,37 @@ export function decide(s: ControlState, grade: { grade: AnswerGrade; missing: st
     reason: c.practiceDue ? "practice question overdue" : `still ${grade.grade} after ${s.followUps} follow-ups`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Turning a decision into words for the interviewer model. UpdatePrompt only
+// appends, so each directive says it applies to the next reply only and replaces
+// any earlier directive.
+
+const quote = (s: string) => `"${s.replace(/"/g, "'")}"`;
+
+/** The one-turn instruction for a move-on, sent while the candidate is still answering. */
+export function directiveFor(action: Action, n: number, topics: Topic[] = []): string | null {
+  if (action.kind !== "move_on") return null;
+  const head = `DIRECTIVE ${n}. This overrides the follow-up rules above for your next reply only, and replaces any earlier directive. Do not ask another follow-up about the current story, even if the answer seems incomplete. In your next reply, give one short, neutral acknowledgment with no praise, then`;
+  const to = action.to;
+  if (to.kind === "practice") return `${head} ask exactly this question and nothing else: ${quote(to.question)}`;
+  if (to.kind === "topic") {
+    const t = topics.find((x) => x.id === to.id);
+    return `${head} move to a new topic from their resume, ${quote(to.title)}${t ? ` (${t.claim})` : ""}. Ask one open question about it.`;
+  }
+  if (to.kind === "revisit") {
+    const t = topics.find((x) => x.id === to.note.story);
+    return `${head} go back to something they said earlier that stayed vague${t ? `, about ${quote(t.title)}` : ""}, and ask once for ${to.note.missing.join(" and ") || "a specific detail"}.`;
+  }
+  return `${head} move on to a new topic. Ask one open question about it.`;
+}
+
+/** The spoken fallback when the interviewer ignored a directive: said right after its reply, like the close. */
+export function moveOnLine(action: Action): string | null {
+  if (action.kind !== "move_on") return null;
+  const to = action.to;
+  if (to.kind === "practice") return `Actually, let's leave that there and move on. ${to.question}`;
+  if (to.kind === "topic") return `Actually, let's leave that there and move on. Tell me about ${to.title.toLowerCase()}.`;
+  return null;
+}
+

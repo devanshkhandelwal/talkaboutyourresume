@@ -28,6 +28,21 @@ It reads `ANTHROPIC_API_KEY` and `DEEPGRAM_API_KEY` from `.env.local`. A 21-inte
 
 `npm run eval:replay` replays recorded interviews (the `.json` results) through `lib/interviewControl.ts`, the app-side controller that grades each answer in code and decides whether the interviewer should dig, move on, or note the answer to come back to. It costs nothing: no model calls. It reports how often the code grading agrees with the judge's labels, where the controller would have stepped in, and what that would change (extra follow-ups, practice questions never asked, repeated questions), per interviewer type. Pass result files to replay specific runs.
 
+## Steering the interviewer mid-interview
+
+`npm run eval:steer` tests whether the app can make the interviewer move on. It takes recorded interviews at the controller's first step-in (move on to a practice question; the recorded model kept digging), resumes a real Deepgram session at that point (production prompt, the conversation so far as `agent.context`, no greeting), and compares approaches. Deepgram only, about $0.40 for `--cases 12`.
+
+Results (12 cases, `evals/results/steer-2026-10-16-03-20.md`):
+
+| Approach | Moved on |
+|---|---|
+| No steering | 3/12 |
+| One-turn `UpdatePrompt` directive, sent before the answer | 8/12 (6 to the intended question) |
+| Directive, then "Actually, let's leave that there and move on. …" right after the reply if it was ignored | 12/12 (one later turn had two questions, an older habit) |
+| `InjectAgentMessage` while the model is thinking | 0/3: the line is spoken, then the model adds its own question anyway |
+
+`UpdatePrompt` is acknowledged in about 70 ms, so a directive sent when the candidate starts answering is in place well before their turn ends.
+
 ## What it checks
 
 | Check | Target |
@@ -69,4 +84,5 @@ Strong, Vague, All "we", Rambler, Evasive, Silent and confused, and Adversarial 
 | `simulate.ts` | One interview: same prompt, greeting and wrap-up as production |
 | `judge.ts` | Scores a transcript (judge model + code checks) |
 | `candidates.ts`, `fixtures.ts` | Simulated candidates and fictional resumes |
-| `replay.ts` | Replays recorded interviews through the interview controller, offline |
+| `replay.ts`, `controller.ts` | Replays recorded interviews through the interview controller, offline |
+| `steer.ts` | Tests steering a live Deepgram session: directive, spoken fallback, injection |
