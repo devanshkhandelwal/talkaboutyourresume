@@ -9,7 +9,10 @@ npm run eval                                    # 3 resumes × 7 candidates thro
 npm run eval -- --candidates vague,we --runs 3  # a subset, repeated
 npm run eval -- --temperature 0.5 --label temp-0.5
 npm run eval -- --report evals/results/<run>.json   # rebuild a scorecard, no API calls
+npm run eval -- --runs 3 --resume evals/results/<run>.partial.jsonl   # finish a crashed run
 ```
+
+Each finished interview is saved to `evals/results/<run>.partial.jsonl` as it completes, so a crash or a Deepgram outage loses nothing. Rerun the same command with `--resume` and that file to run only the interviews it's missing; the file is deleted once the full results are written.
 
 It reads `ANTHROPIC_API_KEY` and `DEEPGRAM_API_KEY` from `.env.local`. A 21-interview run takes about 10 minutes and costs about $2.30: roughly $2 of Deepgram session minutes for the interviewer and $0.35 of Claude API for the simulated candidates and the judge. Keep `--concurrency` at 3 or less; more parallel Deepgram sessions caused "Failed to think" errors.
 

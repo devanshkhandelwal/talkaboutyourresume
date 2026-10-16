@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CANDIDATES, type Candidate } from "./candidates";
 import { FIXTURES, PRACTICE_QUESTIONS, type Fixture } from "./fixtures";
@@ -447,9 +447,31 @@ async function main() {
   const candidates = CANDIDATES.filter((c) => o.candidates.includes(c.id));
   const jobs: Job[] = fixtures.flatMap((f) => candidates.flatMap((c) => Array.from({ length: o.runs }, (_, r) => ({ id: `${f.id}/${c.id}${o.runs > 1 ? `/${r + 1}` : ""}`, fixture: f, candidate: c }))));
 
-  console.error(`Running ${jobs.length} interviews with ${o.model} at temperature ${o.temperature} (${o.concurrency} at a time)...`);
+  // Each finished interview is appended to <name>.partial.jsonl as it completes, so a
+  // crash loses nothing: --resume <that file> runs only the interviews it lacks.
+  const dir = join(process.cwd(), "evals", "results");
+  mkdirSync(dir, { recursive: true });
+  const resumeAt = argv.indexOf("--resume");
+  const partial = resumeAt >= 0 ? argv[resumeAt + 1] : null;
+  const name = partial
+    ? partial.split("/").pop()!.replace(/\.partial\.jsonl$/, "")
+    : `${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}${o.label ? `-${o.label.replace(/[^a-z0-9.-]+/gi, "-")}` : ""}`;
+  const partialPath = join(dir, `${name}.partial.jsonl`);
+  const saved = new Map<string, Outcome>();
+  if (partial && existsSync(partial)) {
+    for (const line of readFileSync(partial, "utf8").split("\n").filter(Boolean)) {
+      const x = JSON.parse(line) as { id: string; sim?: SimResult; score?: Score; error?: string };
+      if (x.error || !x.sim || !x.score) continue;
+      const job = jobs.find((j) => j.id === x.id);
+      if (job) saved.set(x.id, { ...job, sim: x.sim, score: x.score });
+    }
+    console.error(`Resuming ${name}: ${saved.size} interviews already done.`);
+  }
+  const todo = jobs.filter((j) => !saved.has(j.id));
+
+  console.error(`Running ${todo.length} interviews with ${o.model} at temperature ${o.temperature} (${o.concurrency} at a time)...`);
   let done = 0;
-  const outcomes = await pool(jobs, o.concurrency, async (job): Promise<Outcome> => {
+  const fresh = await pool(todo, o.concurrency, async (job): Promise<Outcome> => {
     try {
       const sim = await simulateInterview({
         backend: o.backend,
@@ -466,18 +488,16 @@ async function main() {
         control: o.control,
       });
       const score = await judgeInterview({ sim, fixture: job.fixture, candidate: job.candidate, questions: PRACTICE_QUESTIONS, judgeModel: o.judgeModel });
-      console.error(`  [${++done}/${jobs.length}] ${job.id}: ${sim.transcript.length} turns, ${sim.ended}`);
+      console.error(`  [${++done}/${todo.length}] ${job.id}: ${sim.transcript.length} turns, ${sim.ended}`);
+      appendFileSync(partialPath, JSON.stringify({ id: job.id, sim, score }) + "\n");
       return { ...job, sim, score };
     } catch (err) {
-      console.error(`  [${++done}/${jobs.length}] ${job.id}: ERROR ${err instanceof Error ? err.message : err}`);
+      console.error(`  [${++done}/${todo.length}] ${job.id}: ERROR ${err instanceof Error ? err.message : err}`);
+      appendFileSync(partialPath, JSON.stringify({ id: job.id, error: err instanceof Error ? err.message : String(err) }) + "\n");
       return { ...job, error: err instanceof Error ? err.message : String(err) };
     }
   });
-
-  const dir = join(process.cwd(), "evals", "results");
-  mkdirSync(dir, { recursive: true });
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-  const name = `${stamp}${o.label ? `-${o.label.replace(/[^a-z0-9.-]+/gi, "-")}` : ""}`;
+  const outcomes = jobs.map((j) => saved.get(j.id) ?? fresh[todo.indexOf(j)]);
   let commit = "unknown";
   try {
     commit = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
@@ -514,6 +534,8 @@ async function main() {
       2,
     ),
   );
+  // The full results are written; the checkpoint has served its purpose.
+  rmSync(partialPath, { force: true });
   console.log(markdown.split("\n## By candidate")[0]);
   console.error(`\nFull report: evals/results/${name}.md`);
 }
@@ -600,6 +622,10 @@ function rebuildReport(file: string) {
   writeFileSync(file, JSON.stringify({ ...data, metrics }, null, 2));
   console.log(markdown.split("\n## By candidate")[0]);
 }
+
+// A stray rejection from one session (a socket that failed late) shouldn't end a
+// run that has other interviews in flight; each interview reports its own errors.
+process.on("unhandledRejection", (err) => console.error("  (ignored unhandled rejection)", err instanceof Error ? err.message : err));
 
 main().catch((err) => {
   console.error(err);
