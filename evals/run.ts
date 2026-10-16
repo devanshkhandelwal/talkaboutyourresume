@@ -7,6 +7,9 @@ import { formatTranscript, judgeInterview, type Score } from "./judge";
 import { simulateInterview, type SimResult } from "./simulate";
 import { THINK_TEMPERATURE, thinkModel } from "@/lib/agentSettings";
 import { isInterviewMode, type InterviewMode } from "@/lib/prompts";
+import { DEFAULT_POLICY } from "@/lib/interviewControl";
+import { INTERVIEWERS } from "@/lib/interviewers";
+import { replay } from "./controller";
 
 // Interviewer evals. Runs every fixture × candidate (× --runs), judges each
 // transcript, and writes a scorecard to evals/results/<timestamp>.md (plus the
@@ -92,6 +95,8 @@ type Metric = {
   higherIsBetter: boolean;
 };
 
+/** The interviewer of the run being reported; set by report(). */
+let reportInterviewer = "manager";
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : null);
 /** 95% Wilson interval for a rate, e.g. "[62–84%]": how far the run-to-run noise could move it. */
 function ci(n: number, d: number) {
@@ -122,6 +127,33 @@ const METRICS: Metric[] = [
       const all = scored(o).flatMap((x) => x.score.verdicts.vague_answers);
       const v = pct(all.filter((a) => a.followed_up).length, all.length);
       return { text: v === null ? "n/a" : `${v}% (${all.filter((a) => a.followed_up).length}/${all.length}) ${ci(all.filter((a) => a.followed_up).length, all.length)}`, value: v, pass: v === null ? null : v >= 90 };
+    },
+  },
+  {
+    // The judge wants a follow-up after every vague answer, but the interviewer's
+    // policy stops after a few follow-ups on one story (2 for the Hiring Manager) and
+    // notes the answer instead. This splits the same verdicts by whether the story
+    // still had follow-up budget when the vague answer came in, using the
+    // controller's own story tracking on the transcript (no API calls).
+    id: "vague_follow_up_budget",
+    label: "…of those, while the story still had follow-up budget",
+    target: "≥ 90%",
+    higherIsBetter: true,
+    compute: (o) => {
+      const policy = INTERVIEWERS.find((i) => i.id === reportInterviewer)?.followUps ?? DEFAULT_POLICY;
+      let n = 0;
+      let hit = 0;
+      for (const x of scored(o)) {
+        const steps = replay({ id: x.id, transcript: x.sim.transcript, verdicts: x.score.verdicts, wrapStartedAt: x.sim.wrapStartedAt }, policy).steps;
+        const spent = new Set(steps.filter((st) => st.action.kind === "move_on" && /after \d+ follow-ups|overdue/.test(st.action.reason)).map((st) => st.turn));
+        for (const v of x.score.verdicts.vague_answers) {
+          if (spent.has(v.turn)) continue;
+          n++;
+          if (v.followed_up) hit++;
+        }
+      }
+      const v = pct(hit, n);
+      return { text: v === null ? "n/a" : `${v}% (${hit}/${n}) ${ci(hit, n)}`, value: v, pass: v === null ? null : v >= 90 };
     },
   },
   {
@@ -301,6 +333,7 @@ function delta(m: Metric, now: number | null, before: number | null | undefined)
 }
 
 function report(o: Options, outcomes: Outcome[], stamp: string, commit: string, prev: SavedRun | null, haveTokens = true) {
+  reportInterviewer = o.interviewer;
   const s = scored(outcomes);
   const results = METRICS.map((m) => ({ m, r: m.compute(outcomes) }));
   const passed = results.filter((x) => x.r.pass === true).length;
@@ -499,6 +532,7 @@ async function rejudgeRun(file: string) {
       wrapStartedAt: x.wrapStartedAt ?? -1,
       tokens: x.tokens ?? { interviewer: zero, candidate: zero },
       deepgramSeconds: x.deepgramSeconds ?? 0,
+      control: x.control,
     };
     try {
       const score = await judgeInterview({ sim, fixture: job.fixture, candidate: job.candidate, questions: PRACTICE_QUESTIONS, judgeModel: o.judgeModel });
@@ -539,6 +573,7 @@ function rebuildReport(file: string) {
         wrapStartedAt: x.wrapStartedAt ?? -1,
         tokens: x.tokens ?? { interviewer: zero, candidate: zero },
         deepgramSeconds: x.deepgramSeconds ?? 0,
+        control: x.control,
       },
       score: { verdicts: x.verdicts, checks: x.checks, judgeTokens: x.judgeTokens ?? zero },
     };

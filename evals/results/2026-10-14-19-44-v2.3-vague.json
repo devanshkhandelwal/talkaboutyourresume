@@ -30,6 +30,7 @@
   },
   "metrics": {
     "vague_follow_up": 74.3,
+    "vague_follow_up_budget": 69.2,
     "ownership": 53.6,
     "over_drill": 3.29,
     "one_question": 0.3,
@@ -37,6 +38,7 @@
     "character_breaks": 0,
     "practice_coverage": 69.4,
     "topic_coverage": 1.7,
+    "steering": null,
     "closes": 100,
     "closes_unassisted": 100,
     "injection": 100

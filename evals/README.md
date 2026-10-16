@@ -43,6 +43,8 @@ Results (12 cases, `evals/results/steer-2026-10-16-03-20.md`):
 
 `UpdatePrompt` is acknowledged in about 70 ms, so a directive sent when the candidate starts answering is in place well before their turn ends.
 
+**With the controller in the simulator (v2.4, 63 interviews, `2026-10-16-04-28-v2.4-control.md`) vs v2.3 (21):** every practice question asked, 69.4% → 100%; extra follow-ups after a complete answer, 3.29 → 1.18; resume topics per interview, 1.7 → 3.2; "come back to it" lines, 0 → 28. Follow-ups on vague answers fell from 74.3% to 62.3%, but split by follow-up budget, the rate while the story still had budget held (69.2% → 67.9%): the drop is the cap stopping drilling after two follow-ups, which the judge still counts as a miss. Costs: turns with two questions rose to 7.7%, almost all the spoken move-on line right after the model's own question, and only 38% of directives were followed (fewer as they pile up in one interview).
+
 ## What it checks
 
 | Check | Target |
