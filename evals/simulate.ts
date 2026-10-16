@@ -124,9 +124,10 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
   // The interviewer: either a live Deepgram session or the model called directly.
   let dg: DeepgramInterviewer | null = null;
   let transcript: Turn[];
+  const settings = buildAgentSettings({ interviewer, prompt: basePrompt, greeting, model: o.model, temperature: o.temperature });
   if (o.backend === "deepgram") {
     dg = new DeepgramInterviewer();
-    const spoken = await dg.start(buildAgentSettings({ interviewer, prompt: basePrompt, greeting, model: o.model, temperature: o.temperature }));
+    const spoken = await dg.start(settings);
     transcript = [{ role: "interviewer", text: spoken }];
   } else {
     transcript = [{ role: "interviewer", text: greeting }];
@@ -144,7 +145,8 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
       })
     : null;
   control?.onInterviewer(transcript[0].text);
-  const promptAdditions: string[] = [];
+  // A directive applies to the next reply only (the app swaps it in and out with UpdateThink).
+  let directiveNow: string | null = null;
 
   /** Claude messages from the transcript; consecutive turns by one speaker are merged. */
   function messages(interviewerRole: "user" | "assistant"): Anthropic.MessageParam[] {
@@ -160,7 +162,7 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
 
   async function interviewerReply(answer: string): Promise<string> {
     if (dg) return dg.say(answer);
-    const system = [basePrompt, ...promptAdditions, ...(closing ? [CLOSING_PROMPT] : [])].join("\n\n");
+    const system = [basePrompt, ...(closing ? [CLOSING_PROMPT] : []), ...(directiveNow ? [directiveNow] : [])].join("\n\n");
     return call(o.model, system, [{ role: "user", content: OPENING }, ...messages("assistant")], o.temperature, 400, tokens.interviewer);
   }
 
@@ -190,13 +192,18 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
       // The candidate starts answering: a directive goes out now if the move-on doesn't depend on the answer.
       const directive = closing ? null : control?.beforeAnswer();
       if (directive) {
-        if (dg) await dg.addToPrompt(directive);
-        else promptAdditions.push(directive);
+        directiveNow = directive;
+        if (dg) await dg.updateThink({ ...settings.agent.think, prompt: `${basePrompt}\n\n${directive}` });
       }
       transcript.push({ role: "candidate", text: answer });
       if (!closing) control?.onCandidate(answer);
 
       let reply = await interviewerReply(answer);
+      if (directiveNow) {
+        // Spent: swap it back out, like the live page does when the reply arrives.
+        directiveNow = null;
+        if (dg) await dg.updateThink(settings.agent.think);
+      }
       // The reply stayed on the story when a move-on was due: the app says the move-on line right after.
       const moveOn = closing ? null : control?.onInterviewer(reply);
       if (moveOn) reply = `${reply} ${await interviewerSays(moveOn)}`;

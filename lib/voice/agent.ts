@@ -63,9 +63,17 @@ export class InterviewAgent {
   private outAnalyser: AnalyserNode | null = null;
   private outBuf: Float32Array<ArrayBuffer> | null = null;
 
+  /** The interviewer's think settings, to swap a directive in and out (UpdateThink). */
+  private think: { prompt: string; [k: string]: unknown } | null = null;
+  /** Text appended to the prompt with UpdatePrompt (the close), kept across swaps. */
+  private promptAdditions: string[] = [];
+  private steering = false;
+
   constructor(private events: AgentEvents) {}
 
   async start(token: string, settings: unknown) {
+    const think = (settings as { agent?: { think?: { prompt?: string } } })?.agent?.think;
+    this.think = think && typeof think.prompt === "string" ? (think as { prompt: string }) : null;
     this.events.onStatus("connecting");
 
     this.mic = await navigator.mediaDevices.getUserMedia({
@@ -205,6 +213,11 @@ export class InterviewAgent {
         this.events.onStatus(this.muted ? "muted" : "listening");
         break;
       case "ConversationText":
+        // The interviewer replied: a directive is spent, so swap it back out.
+        if (msg.role === "assistant" && this.steering) {
+          this.steering = false;
+          this.sendThink(null);
+        }
         if (msg.role && msg.content) {
           const line: TranscriptLine = { role: msg.role, content: msg.content };
           if (msg.role === "user" && this.userTurnStartedAt !== null) {
@@ -329,6 +342,7 @@ export class InterviewAgent {
    * not replace it, so pass only the new text.
    */
   addToPrompt(text: string) {
+    this.promptAdditions.push(text);
     this.sendJson({ type: "UpdatePrompt", prompt: text });
   }
 
@@ -357,7 +371,18 @@ export class InterviewAgent {
    * controller (lib/interviewControl.ts). Sent while the candidate is still talking.
    */
   steer(directive: string) {
-    this.addToPrompt(directive);
+    // UpdateThink replaces the prompt, so only this directive is in it, and it comes
+    // out again after the next reply. (UpdatePrompt would pile directives up.)
+    if (!this.think) return this.addToPrompt(directive);
+    this.steering = true;
+    this.sendThink(directive);
+  }
+
+  /** The base prompt plus anything appended since, plus at most one directive. */
+  private sendThink(directive: string | null) {
+    if (!this.think) return;
+    const prompt = [this.think.prompt, ...this.promptAdditions, ...(directive ? [directive] : [])].join("\n\n");
+    this.sendJson({ type: "UpdateThink", think: { ...this.think, prompt } });
   }
 
   /**

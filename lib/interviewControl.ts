@@ -239,7 +239,7 @@ export function directiveFor(action: Action, n: number, topics: Topic[] = []): s
   if (action.kind !== "move_on") return null;
   const head = `DIRECTIVE ${n}. This overrides the follow-up rules above for your next reply only, and replaces any earlier directive. Do not ask another follow-up about the current story, even if the answer seems incomplete. In your next reply, give one short, neutral acknowledgment with no praise, then`;
   const to = action.to;
-  if (to.kind === "practice") return `${head} ask exactly this question and nothing else: ${quote(to.question)}`;
+  if (to.kind === "practice") return `${head} ask exactly this question and nothing else: ${quote(to.question)}. Ask it as your own question; don't say it's from a list or that they wanted to practice it.`;
   if (to.kind === "topic") {
     const t = topics.find((x) => x.id === to.id);
     return `${head} move to a new topic from their resume, ${quote(to.title)}${t ? ` (${t.claim})` : ""}. Ask one open question about it.`;
@@ -277,11 +277,13 @@ export const isMoveOnLine = (text: string) => /^Actually, (let's leave that ther
 // - when the candidate starts answering: if the follow-up budget for this story
 //   is spent or a practice question is overdue, the move-on doesn't depend on the
 //   answer, so a one-turn directive goes out now (UpdatePrompt, ~70 ms);
-// - when the interviewer replies: if a move-on was due (including ones that
-//   depend on the answer, like a complete answer or "I already told you") and the
-//   reply stayed on the story, the app says the move-on line at the next pause.
-// Measured on recorded interviews resumed in Deepgram (evals/steer.ts): directive
-// alone moved on 8/12, with the spoken fallback 12/12.
+// - when the interviewer replies: if a directive was ignored, or the candidate
+//   said "you already asked me that", the app says the move-on line at the next
+//   pause. A move-on decided from an answer (it looked complete) doesn't interrupt
+//   the reply already underway; it goes out as a directive on the next turn.
+// Directives are swapped in with UpdateThink, so only the current one is in the
+// prompt (lib/voice/agent.ts). Measured on recorded interviews resumed in Deepgram
+// (evals/steer.ts) and in full evals (evals/README.md).
 
 const WARMUP_AGAIN = /walk me through your background|tell me (a bit )?about yourself|start from the beginning/i;
 
@@ -305,6 +307,12 @@ export class InterviewController {
   private directives = 0;
   /** A move-on the next interviewer reply should carry out. */
   private expected: Action | null = null;
+  /**
+   * A move-on decided from an answer (it looked complete). The model is already
+   * replying by then, so instead of interrupting it, this goes out as a directive
+   * when the candidate starts their next answer.
+   */
+  private queued: Action | null = null;
   private directed = false;
   readonly log: { line: number; event: string }[] = [];
 
@@ -330,6 +338,14 @@ export class InterviewController {
   /** The candidate started answering. Returns a directive to send now, or null. */
   beforeAnswer(): string | null {
     if (this.expected || this.s.story === "warmup") return null;
+    if (this.queued) {
+      const action = this.queued;
+      this.queued = null;
+      this.expected = action;
+      this.directed = true;
+      this.log.push({ line: this.lines, event: `directive: ${action.kind === "move_on" ? action.reason : ""} (queued)` });
+      return directiveFor(action, ++this.directives, this.o.topics);
+    }
     const c = this.context();
     if (this.s.followUps < c.policy.maxFollowUps && !c.practiceDue) return null;
     // Spent budget or an overdue practice question: move on whatever they say.
@@ -348,8 +364,14 @@ export class InterviewController {
     const action = decide(this.s, grade, this.context());
     if (action.kind === "move_on" && action.to.kind === "revisit") this.s.revisited.add(action.to.note.story);
     if (action.kind === "move_on" && !this.expected) {
-      this.expected = action;
-      this.log.push({ line: this.lines, event: `move on after the answer: ${action.reason}` });
+      if (grade.grade === "repeated") {
+        // "You already asked me that": don't wait a turn.
+        this.expected = action;
+        this.log.push({ line: this.lines, event: `move on after the answer: ${action.reason}` });
+      } else {
+        this.queued = action;
+        this.log.push({ line: this.lines, event: `move on next turn: ${action.reason}` });
+      }
     }
     this.lines++;
   }
@@ -373,6 +395,14 @@ export class InterviewController {
       }
       this.expected = null;
       this.directed = false;
+    }
+    // The model moved on by itself before a queued move-on went out: drop it.
+    if (this.queued && !this.expected) {
+      const k = classifyQuestion(text, { practice: this.o.practice, topics: this.o.topics, warmup: false });
+      if (!WARMUP_AGAIN.test(text) && (k.kind === "practice" || k.kind === "topic" || k.kind === "transition" || k.kind === "closing")) {
+        this.queued = null;
+        this.log.push({ line: this.lines, event: "moved on by itself" });
+      }
     }
     this.lastQuestion = text;
     const kind = classifyQuestion(text, { practice: this.o.practice, topics: this.o.topics, warmup: this.lines < 4 });

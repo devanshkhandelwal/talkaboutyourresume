@@ -98,18 +98,35 @@ async function control(c: Case): Promise<Row> {
   }
 }
 
-async function directive(c: Case): Promise<Row> {
+/**
+ * One directive, three ways: appended with UpdatePrompt (as in v2.4), appended
+ * after an older, spent directive (what happens by the second one in an
+ * interview), or swapped in with UpdateThink so only the current one is in the
+ * prompt, then swapped back out.
+ */
+async function directive(c: Case, how: "append" | "append-stale" | "replace" = "append"): Promise<Row> {
   const { settings, topics } = sessionFor(c);
   const dg = new DeepgramInterviewer();
+  const think = (settings.agent as { think: { prompt: string } }).think;
   try {
     await dg.start(settings);
-    const text = directiveFor({ kind: "move_on", to: { kind: "practice", question: c.question }, reason: "" }, 1, topics)!;
+    const action: Action = { kind: "move_on", to: { kind: "practice", question: c.question }, reason: "" };
     const t0 = Date.now();
-    await dg.addToPrompt(text);
+    if (how === "replace") {
+      await dg.updateThink({ ...think, prompt: `${think.prompt}\n\n${directiveFor(action, 1, topics)}` });
+    } else {
+      if (how === "append-stale") {
+        const other = topics[topics.length - 1];
+        await dg.addToPrompt(directiveFor({ kind: "move_on", to: { kind: "topic", id: other.id, title: other.title }, reason: "" }, 1, topics)!);
+      }
+      await dg.addToPrompt(directiveFor(action, how === "append-stale" ? 2 : 1, topics)!);
+    }
     const ackMs = Date.now() - t0;
     const reply = await dg.say(c.rec.transcript[c.turn].text);
     const followed = asksPractice(reply, c.question, topics);
     const left = movedOn(reply, topics);
+    // The directive is spent: swap it back out.
+    if (how === "replace") await dg.updateThink(think);
     // One more turn: a decent answer to the practice question. The directive should be spent.
     const next = await dg.say(answerFor(reply));
     const stuck = asksPractice(next, c.question, topics) || CONFUSED.test(next);
@@ -119,7 +136,7 @@ async function directive(c: Case): Promise<Row> {
       PRAISE.test(reply) ? "praised" : "",
       stuck ? "re-asked it next turn" : "back to normal next turn",
     ].filter(Boolean);
-    return { c, mode: "directive", reply, next, ok: left && !stuck, exact: followed, note: notes.join("; "), seconds: dg.seconds(), ackMs };
+    return { c, mode: how, reply, next, ok: left && !stuck, exact: followed, note: notes.join("; "), seconds: dg.seconds(), ackMs };
   } finally {
     dg.close();
   }
@@ -190,8 +207,13 @@ async function main() {
   const cases = pickCases();
   console.log(`${cases.length} cases`);
   const jobs: (() => Promise<Row>)[] = [];
-  for (const c of cases) jobs.push(() => control(c), () => directive(c), () => fallback(c));
-  for (const c of cases.slice(0, 3)) jobs.push(() => inject(c));
+  const modes = (arg("modes") ?? "control,append,append-stale,replace").split(",");
+  for (const c of cases) {
+    if (modes.includes("control")) jobs.push(() => control(c));
+    for (const how of ["append", "append-stale", "replace"] as const) if (modes.includes(how)) jobs.push(() => directive(c, how));
+    if (modes.includes("fallback")) jobs.push(() => fallback(c));
+  }
+  if (modes.includes("inject")) for (const c of cases.slice(0, 3)) jobs.push(() => inject(c));
   const rows: Row[] = [];
   // Deepgram gets flaky above 3 sessions at once.
   let next = 0;
@@ -213,7 +235,7 @@ async function main() {
   const by = (m: string) => rows.filter((r) => r.mode === m);
   const rate = (m: string) => `${by(m).filter((r) => r.ok).length}/${by(m).length}`;
   const seconds = rows.reduce((n, r) => n + r.seconds, 0);
-  const acks = by("directive").map((r) => r.ackMs!).sort((a, b) => a - b);
+  const acks = rows.filter((r) => r.ackMs !== undefined).map((r) => r.ackMs!).sort((a, b) => a - b);
   const lines = [
     "# Steering test",
     "",
@@ -222,7 +244,9 @@ async function main() {
     "| Approach | Worked | What counts as working |",
     "|---|---|---|",
     `| Control (no steering) | ${rate("control")} | moved on to the practice question by itself |`,
-    `| One-turn UpdatePrompt directive | ${rate("directive")} | left the story (${by("directive").filter((r) => r.exact).length} asked the exact practice question), then back to normal the next turn |`,
+    `| UpdatePrompt directive (appended) | ${rate("append")} | left the story (${by("append").filter((r) => r.exact).length} asked the exact question), then normal next turn |`,
+    `| UpdatePrompt directive after an older one | ${rate("append-stale")} | same (${by("append-stale").filter((r) => r.exact).length} exact) |`,
+    `| UpdateThink: only the current directive, then swapped out | ${rate("replace")} | same (${by("replace").filter((r) => r.exact).length} exact) |`,
     `| Directive, then "Actually, let's move on" if ignored | ${rate("fallback")} | moved on every time by construction; counts the ones where the next turn was normal |`,
     `| InjectAgentMessage while thinking | ${rate("inject")} | the transition line was spoken in place of the model's reply |`,
     "",
@@ -241,8 +265,10 @@ async function main() {
     ]),
   ];
   const path = `evals/results/steer-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-")}.md`;
-  writeFileSync(path, lines.join("\n"));
-  console.log(lines.slice(4, 12).join("\n"));
+  // Leave out approaches that weren't run.
+  const shown = lines.filter((l) => !l.includes("| 0/0 |"));
+  writeFileSync(path, shown.join("\n"));
+  console.log(shown.slice(4, 12).join("\n"));
   console.log(`\nFull report: ${path}`);
   process.exit(0);
 }

@@ -16,6 +16,7 @@ export class DeepgramInterviewer {
   private turn: Waiter | null = null;
   private promptUpdated: (() => void) | null = null;
   private waitForSettingsOnly = false;
+  private thinkUpdated: (() => void) | null = null;
   private openedAt = 0;
   private closedAt = 0;
   private failure: Error | null = null;
@@ -83,6 +84,15 @@ export class DeepgramInterviewer {
     });
   }
 
+  /** Replaces the interviewer's think settings, prompt included (UpdateThink); resolves on ThinkUpdated. */
+  updateThink(think: unknown): Promise<void> {
+    return new Promise((resolve) => {
+      this.thinkUpdated = resolve;
+      this.send({ type: "UpdateThink", think });
+      setTimeout(resolve, 5000);
+    });
+  }
+
   close() {
     if (this.keepAlive) clearInterval(this.keepAlive);
     this.closedAt ||= Date.now();
@@ -133,6 +143,10 @@ export class DeepgramInterviewer {
           clearTimeout(t.timer);
           t.resolve(this.replyParts.join(" ").trim());
         }
+        break;
+      case "ThinkUpdated":
+        this.thinkUpdated?.();
+        this.thinkUpdated = null;
         break;
       case "PromptUpdated":
         this.promptUpdated?.();
