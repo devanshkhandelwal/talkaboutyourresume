@@ -18,8 +18,8 @@ import { currentTheme, setTheme } from "@/lib/theme";
 const W = 240;
 const H = 135;
 // The canvas has twice the grid's resolution. The room is drawn in whole grid
-// pixels (2 x 2 canvas pixels); only the calendar's month and dates use single
-// canvas pixels, so a 3 x 5 font fits in a calendar the size of the old one.
+// pixels (2 x 2 canvas pixels); only the calendar's month uses single canvas
+// pixels, so a 3 x 5 font fits in its small header.
 const RES = 2;
 const OX = 48;
 const OY = 27;
@@ -95,7 +95,7 @@ function drawPerson(px: Px, ox: number, oy: number, blink: boolean) {
 }
 
 type Cal = {
-  /** The month's name, for the calendar's header. */
+  /** The month, abbreviated ("OCT"), for the calendar's header. */
   month: string;
   /** Weekday of the 1st (0 = Sunday) and the number of days this month. */
   first: number;
@@ -120,7 +120,7 @@ function monthCal(now: Date): Cal {
     .filter((d) => d >= 1 && d <= 31)
     .sort((a, b) => a - b);
   const today = now.getDate();
-  const month = now.toLocaleDateString("en-US", { month: "long" }).toUpperCase();
+  const month = now.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
   return { month, first: new Date(y, m, 1).getDay(), days: new Date(y, m + 1, 0).getDate(), today, crossed: practiced, shown: practiced.length, todayOn: true };
 }
 
@@ -217,41 +217,31 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
   for (let y = 0; y < 6; y++) rect(124 - y, 11 + y, 9 + y * 2, 1, I);
   rect(126, 17, 5, 1, P);
 
-  // A wall calendar on two rings: the month in a solid header, then the dates.
-  // Frame and header are in grid pixels like the rest of the room; the text and
-  // marks use half-size pixels (see RES). Days you practiced are crossed out, and
-  // only those; today is a solid box. It grows a row for six-week months.
-  const cx = 73;
-  const cy = 17;
-  const cw = 42;
+  // A wall calendar on a nail: the month in a solid header (half-size pixels, see
+  // RES), then a dot for each day. Days you practiced are crossed out, and only
+  // those; today is a solid square. It grows a row for six-week months.
+  const cx = 78;
+  const cy = 18;
   const rows = Math.ceil((cal.first + cal.days) / 7);
-  // Header, the date rows (9 half-pixels each), a margin and the frame.
-  const ch = Math.ceil((15 + rows * 9) / 2);
-  box(cx, cy, cw, ch);
-  rect(cx, cy, cw, 5, I);
-  for (const rx of [cx + 8, cx + cw - 10]) rect(rx, cy - 2, 2, 2, I);
-  const kx = cx * RES;
-  const ky = cy * RES;
-  drawText3x5(cal.month, kx + Math.floor((cw * RES - textWidth3x5(cal.month)) / 2), ky + 3, (x, y) => fine(x, y, 1, 1, P));
+  rect(cx + 15, cy - 2, 2, 2, I);
+  box(cx, cy, 32, 9 + rows * 4);
+  rect(cx, cy, 32, 5, I);
+  rect(cx + 4, cy + 2, 2, 1, P);
+  rect(cx + 26, cy + 2, 2, 1, P);
+  drawText3x5(cal.month, cx * RES + Math.floor((32 * RES - textWidth3x5(cal.month)) / 2), cy * RES + 3, (x, y) => fine(x, y, 1, 1, P));
   const shown = new Set(cal.crossed.slice(0, cal.shown));
   for (let day = 1; day <= cal.days; day++) {
     const slot = cal.first + day - 1;
-    // Cells are 7 x 5 half-pixels with 4 between them; numbers sit at the cell's right edge.
-    const x = kx + 5 + (slot % 7) * 11;
-    const y = ky + 14 + Math.floor(slot / 7) * 9;
-    const isToday = day === cal.today && cal.todayOn;
-    const ink = isToday ? P : I;
-    if (isToday) fine(x - 2, y - 2, 11, 9, I);
+    const x = cx + 3 + (slot % 7) * 4;
+    const y = cy + 7 + Math.floor(slot / 7) * 4;
     if (shown.has(day)) {
-      // A 5 x 5 cross in place of the number.
-      for (let i = 0; i < 5; i++) {
-        fine(x + 1 + i, y + i, 1, 1, ink);
-        fine(x + 5 - i, y + i, 1, 1, ink);
-      }
-    } else {
-      const label = String(day);
-      drawText3x5(label, x + 7 - textWidth3x5(label), y, (px_, py_) => fine(px_, py_, 1, 1, ink));
-    }
+      px(x, y, I);
+      px(x + 2, y, I);
+      px(x + 1, y + 1, I);
+      px(x, y + 2, I);
+      px(x + 2, y + 2, I);
+    } else if (day === cal.today && cal.todayOn) rect(x, y, 3, 3, I);
+    else px(x + 1, y + 1, I);
   }
 
   // The desk: top, front edge, apron, a leg and a drawer pedestal.
