@@ -22,6 +22,8 @@ export class DeepgramInterviewer {
   private failure: Error | null = null;
   /** Every message type received, in order, for debugging. */
   readonly events: string[] = [];
+  /** Set when the interviewer called end_interview, with its reason. */
+  endedBy: string | null = null;
 
   /**
    * Connects, applies the settings, and resolves with the interviewer's spoken
@@ -116,7 +118,7 @@ export class DeepgramInterviewer {
   }
 
   private handle(raw: string) {
-    let msg: { type?: string; role?: string; content?: string; description?: string; code?: string };
+    let msg: { type?: string; role?: string; content?: string; description?: string; code?: string; functions?: { id: string; name: string; arguments?: string; client_side?: boolean }[] };
     try {
       msg = JSON.parse(raw);
     } catch {
@@ -134,6 +136,18 @@ export class DeepgramInterviewer {
         break;
       case "ConversationText":
         if (msg.role === "assistant" && msg.content) this.replyParts.push(msg.content);
+        break;
+      case "FunctionCallRequest":
+        // The app's end_interview: answer it like the live page, and remember why.
+        for (const f of msg.functions ?? []) {
+          if (!f.client_side) continue;
+          let reason = "unknown";
+          try {
+            reason = JSON.parse(f.arguments ?? "{}").reason ?? reason;
+          } catch {}
+          if (f.name === "end_interview") this.endedBy = reason;
+          this.send({ type: "FunctionCallResponse", id: f.id, name: f.name, content: f.name === "end_interview" ? "The interview has ended. Say nothing more." : "Unknown function." });
+        }
         break;
       case "AgentAudioDone":
         // The reply is complete once its audio has been sent.
