@@ -47,8 +47,8 @@ function mean(xs: (number | undefined)[]) {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 }
 
-const HEDGES = /\b(i think|i guess|i feel like|maybe|probably|kind of|sort of|i'm not sure|i believe)\b/gi;
-const NUMBERS = /\b\d[\d,.]*%?|\b(one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|hundred|thousand|million|percent|half|double|twice)\b/gi;
+export const HEDGES = /\b(i think|i guess|i feel like|maybe|probably|kind of|sort of|i'm not sure|i believe)\b/gi;
+export const NUMBERS = /\b\d[\d,.]*%?|\b(one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|hundred|thousand|million|percent|half|double|twice)\b/gi;
 
 export function computeNerdStats(s: InterviewSession): NerdStats {
   const yours = s.transcript.filter((l) => l.role === "user");

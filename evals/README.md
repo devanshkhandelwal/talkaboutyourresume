@@ -24,6 +24,10 @@ It reads `ANTHROPIC_API_KEY` and `DEEPGRAM_API_KEY` from `.env.local`. A 21-inte
 
 `npm run eval:pauses` speaks a real answer with a thinking pause mid-sentence into a Deepgram session and reports whether the interviewer cut in, for each Flux `eot_threshold` (`--eot 0.8,0.9 --pauses 2500,4000`). It uses only Deepgram, about a cent per trial. Typed eval interviews can't test this, since injected text skips speech recognition.
 
+## Replaying the interview controller
+
+`npm run eval:replay` replays recorded interviews (the `.json` results) through `lib/interviewControl.ts`, the app-side controller that grades each answer in code and decides whether the interviewer should dig, move on, or note the answer to come back to. It costs nothing: no model calls. It reports how often the code grading agrees with the judge's labels, where the controller would have stepped in, and what that would change (extra follow-ups, practice questions never asked, repeated questions), per interviewer type. Pass result files to replay specific runs.
+
 ## What it checks
 
 | Check | Target |
@@ -65,3 +69,4 @@ Strong, Vague, All "we", Rambler, Evasive, Silent and confused, and Adversarial 
 | `simulate.ts` | One interview: same prompt, greeting and wrap-up as production |
 | `judge.ts` | Scores a transcript (judge model + code checks) |
 | `candidates.ts`, `fixtures.ts` | Simulated candidates and fictional resumes |
+| `replay.ts` | Replays recorded interviews through the interview controller, offline |
