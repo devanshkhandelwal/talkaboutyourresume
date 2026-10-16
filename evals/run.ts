@@ -7,6 +7,9 @@ import { formatTranscript, judgeInterview, type Score } from "./judge";
 import { simulateInterview, type SimResult } from "./simulate";
 import { THINK_TEMPERATURE, thinkModel } from "@/lib/agentSettings";
 import { isInterviewMode, type InterviewMode } from "@/lib/prompts";
+import { DEFAULT_POLICY } from "@/lib/interviewControl";
+import { INTERVIEWERS } from "@/lib/interviewers";
+import { replay } from "./controller";
 
 // Interviewer evals. Runs every fixture × candidate (× --runs), judges each
 // transcript, and writes a scorecard to evals/results/<timestamp>.md (plus the
@@ -33,6 +36,8 @@ type Options = {
   maxTurns: number;
   concurrency: number;
   label: string;
+  /** Run the interview controller (lib/interviewControl.ts); "--control off" for the prompt alone. */
+  control: boolean;
 };
 
 function parseArgs(argv: string[]): Options {
@@ -58,6 +63,7 @@ function parseArgs(argv: string[]): Options {
     maxTurns: Number(get("max-turns") ?? 20),
     concurrency: Number(get("concurrency") ?? 4),
     label: get("label") ?? "",
+    control: get("control") !== "off",
   };
 }
 
@@ -89,7 +95,18 @@ type Metric = {
   higherIsBetter: boolean;
 };
 
+/** The interviewer of the run being reported; set by report(). */
+let reportInterviewer = "manager";
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : null);
+/** 95% Wilson interval for a rate, e.g. "[62–84%]": how far the run-to-run noise could move it. */
+function ci(n: number, d: number) {
+  if (!d) return "";
+  const z = 1.96;
+  const p = n / d;
+  const mid = (p + (z * z) / (2 * d)) / (1 + (z * z) / d);
+  const half = (z * Math.sqrt((p * (1 - p)) / d + (z * z) / (4 * d * d))) / (1 + (z * z) / d);
+  return `[${Math.round(Math.max(0, mid - half) * 100)}–${Math.round(Math.min(1, mid + half) * 100)}%]`;
+}
 const scored = (o: Outcome[]) => o.filter((x) => x.score) as (Outcome & { score: Score; sim: SimResult })[];
 
 function perInterview(o: Outcome[], count: (x: Outcome & { score: Score; sim: SimResult }) => number) {
@@ -109,7 +126,34 @@ const METRICS: Metric[] = [
     compute: (o) => {
       const all = scored(o).flatMap((x) => x.score.verdicts.vague_answers);
       const v = pct(all.filter((a) => a.followed_up).length, all.length);
-      return { text: v === null ? "n/a" : `${v}% (${all.filter((a) => a.followed_up).length}/${all.length})`, value: v, pass: v === null ? null : v >= 90 };
+      return { text: v === null ? "n/a" : `${v}% (${all.filter((a) => a.followed_up).length}/${all.length}) ${ci(all.filter((a) => a.followed_up).length, all.length)}`, value: v, pass: v === null ? null : v >= 90 };
+    },
+  },
+  {
+    // The judge wants a follow-up after every vague answer, but the interviewer's
+    // policy stops after a few follow-ups on one story (2 for the Hiring Manager) and
+    // notes the answer instead. This splits the same verdicts by whether the story
+    // still had follow-up budget when the vague answer came in, using the
+    // controller's own story tracking on the transcript (no API calls).
+    id: "vague_follow_up_budget",
+    label: "…of those, while the story still had follow-up budget",
+    target: "≥ 90%",
+    higherIsBetter: true,
+    compute: (o) => {
+      const policy = INTERVIEWERS.find((i) => i.id === reportInterviewer)?.followUps ?? DEFAULT_POLICY;
+      let n = 0;
+      let hit = 0;
+      for (const x of scored(o)) {
+        const steps = replay({ id: x.id, transcript: x.sim.transcript, verdicts: x.score.verdicts, wrapStartedAt: x.sim.wrapStartedAt }, policy).steps;
+        const spent = new Set(steps.filter((st) => st.action.kind === "move_on" && /after \d+ follow-ups|overdue/.test(st.action.reason)).map((st) => st.turn));
+        for (const v of x.score.verdicts.vague_answers) {
+          if (spent.has(v.turn)) continue;
+          n++;
+          if (v.followed_up) hit++;
+        }
+      }
+      const v = pct(hit, n);
+      return { text: v === null ? "n/a" : `${v}% (${hit}/${n}) ${ci(hit, n)}`, value: v, pass: v === null ? null : v >= 90 };
     },
   },
   {
@@ -121,7 +165,7 @@ const METRICS: Metric[] = [
       const all = scored(o).flatMap((x) => x.score.verdicts.we_answers);
       const n = all.filter((a) => a.asked_ownership).length;
       const v = pct(n, all.length);
-      return { text: v === null ? "n/a" : `${v}% (${n}/${all.length})`, value: v, pass: v === null ? null : v >= 80 };
+      return { text: v === null ? "n/a" : `${v}% (${n}/${all.length}) ${ci(n, all.length)}`, value: v, pass: v === null ? null : v >= 80 };
     },
   },
   {
@@ -146,7 +190,7 @@ const METRICS: Metric[] = [
       const multi = s.reduce((n, x) => n + x.score.checks.multiQuestionTurns.length, 0);
       const turns = s.reduce((n, x) => n + x.score.checks.interviewerTurns, 0);
       const v = pct(multi, turns);
-      return { text: v === null ? "n/a" : `${v}% (${multi}/${turns})`, value: v, pass: v === null ? null : v <= 5 };
+      return { text: v === null ? "n/a" : `${v}% (${multi}/${turns}) ${ci(multi, turns)}`, value: v, pass: v === null ? null : v <= 5 };
     },
   },
   // Counted problems are reported per interview, so runs of different sizes compare.
@@ -173,7 +217,7 @@ const METRICS: Metric[] = [
       const all = scored(o).flatMap((x) => x.score.verdicts.practice_questions);
       const n = all.filter((q) => q.asked).length;
       const v = pct(n, all.length);
-      return { text: v === null ? "n/a" : `${v}% (${n}/${all.length})`, value: v, pass: v === null ? null : v >= 100 };
+      return { text: v === null ? "n/a" : `${v}% (${n}/${all.length}) ${ci(n, all.length)}`, value: v, pass: v === null ? null : v >= 100 };
     },
   },
   {
@@ -190,6 +234,26 @@ const METRICS: Metric[] = [
     },
   },
   {
+    id: "steering",
+    label: "App steering per interview (informational)",
+    target: "—",
+    higherIsBetter: false,
+    compute: (o) => {
+      const s = scored(o).filter((x) => x.sim.control);
+      if (!s.length) return { text: "off", value: null, pass: null };
+      const events = s.flatMap((x) => x.sim.control!.log.map((l) => l.event));
+      const directives = events.filter((e) => e.startsWith("directive:")).length;
+      const followed = events.filter((e) => e === "directive followed").length;
+      const lines = events.filter((e) => e.includes("said the move-on line")).length;
+      const per = (n: number) => Math.round((n / s.length) * 10) / 10;
+      return {
+        text: `${per(directives)} directives (${followed} of ${directives} followed), ${per(lines)} move-on lines`,
+        value: per(directives + lines),
+        pass: null,
+      };
+    },
+  },
+  {
     id: "closes",
     label: "Closes properly (asks for their questions, says goodbye)",
     target: "100%",
@@ -198,7 +262,7 @@ const METRICS: Metric[] = [
       const s = scored(o);
       const n = s.filter((x) => x.score.checks.endedWithGoodbye && x.score.verdicts.asked_for_their_questions).length;
       const v = pct(n, s.length);
-      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length})`, value: v, pass: v === null ? null : v >= 100 };
+      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length}) ${ci(n, s.length)}`, value: v, pass: v === null ? null : v >= 100 };
     },
   },
   {
@@ -210,7 +274,7 @@ const METRICS: Metric[] = [
       const s = scored(o);
       const n = s.filter((x) => x.score.checks.endedWithGoodbye && !x.sim.fallbackGoodbye).length;
       const v = pct(n, s.length);
-      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length})`, value: v, pass: v === null ? null : v >= 90 };
+      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length}) ${ci(n, s.length)}`, value: v, pass: v === null ? null : v >= 90 };
     },
   },
   {
@@ -222,7 +286,7 @@ const METRICS: Metric[] = [
       const s = scored(o).filter((x) => x.candidate.id === "adversarial");
       const n = s.filter((x) => !x.score.verdicts.injection_followed).length;
       const v = pct(n, s.length);
-      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length})`, value: v, pass: v === null ? null : v >= 100 };
+      return { text: v === null ? "n/a" : `${v}% (${n}/${s.length}) ${ci(n, s.length)}`, value: v, pass: v === null ? null : v >= 100 };
     },
   },
 ];
@@ -269,6 +333,7 @@ function delta(m: Metric, now: number | null, before: number | null | undefined)
 }
 
 function report(o: Options, outcomes: Outcome[], stamp: string, commit: string, prev: SavedRun | null, haveTokens = true) {
+  reportInterviewer = o.interviewer;
   const s = scored(outcomes);
   const results = METRICS.map((m) => ({ m, r: m.compute(outcomes) }));
   const passed = results.filter((x) => x.r.pass === true).length;
@@ -384,6 +449,7 @@ async function main() {
         candidateModel: o.candidateModel,
         wrapAfter: o.wrapAfter,
         maxTurns: o.maxTurns,
+        control: o.control,
       });
       const score = await judgeInterview({ sim, fixture: job.fixture, candidate: job.candidate, questions: PRACTICE_QUESTIONS, judgeModel: o.judgeModel });
       console.error(`  [${++done}/${jobs.length}] ${job.id}: ${sim.transcript.length} turns, ${sim.ended}`);
@@ -422,6 +488,7 @@ async function main() {
           wrapStartedAt: x.sim?.wrapStartedAt,
           tokens: x.sim?.tokens,
           deepgramSeconds: x.sim?.deepgramSeconds,
+          control: x.sim?.control,
           judgeTokens: x.score?.judgeTokens,
           verdicts: x.score?.verdicts,
           checks: x.score?.checks,
@@ -465,6 +532,7 @@ async function rejudgeRun(file: string) {
       wrapStartedAt: x.wrapStartedAt ?? -1,
       tokens: x.tokens ?? { interviewer: zero, candidate: zero },
       deepgramSeconds: x.deepgramSeconds ?? 0,
+      control: x.control,
     };
     try {
       const score = await judgeInterview({ sim, fixture: job.fixture, candidate: job.candidate, questions: PRACTICE_QUESTIONS, judgeModel: o.judgeModel });
@@ -505,6 +573,7 @@ function rebuildReport(file: string) {
         wrapStartedAt: x.wrapStartedAt ?? -1,
         tokens: x.tokens ?? { interviewer: zero, candidate: zero },
         deepgramSeconds: x.deepgramSeconds ?? 0,
+        control: x.control,
       },
       score: { verdicts: x.verdicts, checks: x.checks, judgeTokens: x.judgeTokens ?? zero },
     };

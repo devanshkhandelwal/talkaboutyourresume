@@ -7,7 +7,9 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "eval": "tsx evals/run.ts",
-    "eval:pauses": "tsx evals/pauses.ts"
+    "eval:pauses": "tsx evals/pauses.ts",
+    "eval:replay": "tsx evals/replay.ts",
+    "eval:steer": "tsx evals/steer.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

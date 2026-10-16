@@ -15,16 +15,23 @@ export class DeepgramInterviewer {
   private replyParts: string[] = [];
   private turn: Waiter | null = null;
   private promptUpdated: (() => void) | null = null;
+  private waitForSettingsOnly = false;
+  private thinkUpdated: (() => void) | null = null;
   private openedAt = 0;
   private closedAt = 0;
   private failure: Error | null = null;
   /** Every message type received, in order, for debugging. */
   readonly events: string[] = [];
 
-  /** Connects, applies the settings, and resolves with the interviewer's spoken greeting. */
+  /**
+   * Connects, applies the settings, and resolves with the interviewer's spoken
+   * greeting, or with "" once the settings apply when there is no greeting (a
+   * session that continues a conversation from agent.context).
+   */
   async start(settings: unknown): Promise<string> {
     const key = process.env.DEEPGRAM_API_KEY;
     if (!key) throw new Error("DEEPGRAM_API_KEY is not set (add it to .env.local).");
+    this.waitForSettingsOnly = !(settings as { agent?: { greeting?: string } })?.agent?.greeting;
     const greeting = this.nextTurn();
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(AGENT_URL, ["token", key]);
@@ -77,6 +84,15 @@ export class DeepgramInterviewer {
     });
   }
 
+  /** Replaces the interviewer's think settings, prompt included (UpdateThink); resolves on ThinkUpdated. */
+  updateThink(think: unknown): Promise<void> {
+    return new Promise((resolve) => {
+      this.thinkUpdated = resolve;
+      this.send({ type: "UpdateThink", think });
+      setTimeout(resolve, 5000);
+    });
+  }
+
   close() {
     if (this.keepAlive) clearInterval(this.keepAlive);
     this.closedAt ||= Date.now();
@@ -108,6 +124,14 @@ export class DeepgramInterviewer {
     }
     if (msg.type) this.events.push(msg.type === "Warning" ? `Warning: ${msg.description ?? msg.code ?? ""}` : msg.type);
     switch (msg.type) {
+      case "SettingsApplied":
+        if (this.waitForSettingsOnly && this.turn) {
+          const t = this.turn;
+          this.turn = null;
+          clearTimeout(t.timer);
+          t.resolve("");
+        }
+        break;
       case "ConversationText":
         if (msg.role === "assistant" && msg.content) this.replyParts.push(msg.content);
         break;
@@ -119,6 +143,10 @@ export class DeepgramInterviewer {
           clearTimeout(t.timer);
           t.resolve(this.replyParts.join(" ").trim());
         }
+        break;
+      case "ThinkUpdated":
+        this.thinkUpdated?.();
+        this.thinkUpdated = null;
         break;
       case "PromptUpdated":
         this.promptUpdated?.();

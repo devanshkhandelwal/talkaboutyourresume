@@ -1,3 +1,5 @@
+import type { FollowUpPolicy } from "./interviewControl";
+
 export type Interviewer = {
   id: string;
   name: string;
@@ -21,11 +23,17 @@ export type Interviewer = {
    * pauses but replies a beat later. Defaults to LISTEN.eotThreshold (0.9).
    */
   patience?: number;
+  /**
+   * How hard this interviewer digs into a shaky answer, and what happens when it
+   * stays shaky (lib/interviewControl.ts). Defaults to DEFAULT_POLICY.
+   */
+  followUps?: FollowUpPolicy;
 };
 
 export const INTERVIEWERS: Interviewer[] = [
   {
     id: "friendly",
+    followUps: { maxFollowUps: 1, afterBudget: "note" },
     name: "The Friendly One",
     level: "Easy",
     pro: false,
@@ -47,6 +55,7 @@ export const INTERVIEWERS: Interviewer[] = [
   },
   {
     id: "manager",
+    followUps: { maxFollowUps: 2, afterBudget: "revisit" },
     name: "The Hiring Manager",
     level: "Medium",
     pro: false,
@@ -68,6 +77,7 @@ export const INTERVIEWERS: Interviewer[] = [
   },
   {
     id: "silent",
+    followUps: { maxFollowUps: 1, afterBudget: "note" },
     name: "The Silent Type",
     level: "Medium",
     pro: true,
@@ -86,6 +96,7 @@ export const INTERVIEWERS: Interviewer[] = [
   },
   {
     id: "rusher",
+    followUps: { maxFollowUps: 1, afterBudget: "note" },
     name: "The Rusher",
     level: "Medium",
     pro: true,
@@ -107,6 +118,7 @@ export const INTERVIEWERS: Interviewer[] = [
   },
   {
     id: "skeptic",
+    followUps: { maxFollowUps: 2, afterBudget: "revisit" },
     name: "The Skeptic",
     level: "Hard",
     pro: true,
@@ -127,6 +139,7 @@ export const INTERVIEWERS: Interviewer[] = [
   },
   {
     id: "griller",
+    followUps: { maxFollowUps: 3, afterBudget: "revisit" },
     name: "The Griller",
     level: "Hard",
     pro: true,

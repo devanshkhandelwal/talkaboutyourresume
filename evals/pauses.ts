@@ -23,6 +23,12 @@ const arg = (name: string) => {
 };
 const EOTS = (arg("eot") ?? String(LISTEN.eotThreshold)).split(",").map(Number);
 const PAUSES = (arg("pauses") ?? "2500,4000").split(",").map(Number);
+// --steer prompt|think: 1 s into the answer, while the candidate is still talking,
+// send the interview controller's directive the way the app would (UpdatePrompt
+// appends; UpdateThink swaps the whole think config). Checks it doesn't end the
+// candidate's turn early. --trials N repeats each row.
+const STEER = (arg("steer") ?? "none").split(",") as ("none" | "prompt" | "think")[];
+const TRIALS = Number(arg("trials") ?? 1);
 
 const BYTES_PER_SEC = 16000 * 2; // 16 kHz, 16-bit mono
 
@@ -39,9 +45,10 @@ const silence = (ms: number) => Buffer.alloc(Math.round((BYTES_PER_SEC * ms) / 1
 
 type Trial = { turns: number; replyAfterFinish: number | null; cutIn: boolean };
 
-async function trial(eot: number, audio: Buffer, speechEnds: number): Promise<Trial> {
+async function trial(eot: number, audio: Buffer, speechEnds: number, steer: "none" | "prompt" | "think" = "none"): Promise<Trial> {
   const interviewer = { ...INTERVIEWERS[1], patience: eot };
   const settings = buildAgentSettings({ interviewer, prompt: "You are a job interviewer. Reply in one short sentence.", greeting: "Tell me about the hardest problem you worked on." });
+  const directive = "DIRECTIVE 1. For your next reply only: give one short, neutral acknowledgment, then ask exactly: \"Why do you want this kind of role?\"";
   const ws = new WebSocket(AGENT_URL, ["token", KEY!]);
   ws.binaryType = "arraybuffer";
   let t0 = 0;
@@ -64,6 +71,10 @@ async function trial(eot: number, audio: Buffer, speechEnds: number): Promise<Tr
         t0 = Date.now();
         const all = Buffer.concat([audio, silence(9000)]);
         for (let i = 0; i < all.length && ws.readyState === WebSocket.OPEN; i += 3200) {
+          if (i === 10 * 3200 && steer !== "none") {
+            const think = settings.agent.think;
+            ws.send(JSON.stringify(steer === "prompt" ? { type: "UpdatePrompt", prompt: directive } : { type: "UpdateThink", think: { ...think, prompt: `${think.prompt}\n\n${directive}` } }));
+          }
           ws.send(all.subarray(i, i + 3200));
           await new Promise((r) => setTimeout(r, 100));
         }
@@ -81,14 +92,18 @@ async function trial(eot: number, audio: Buffer, speechEnds: number): Promise<Tr
   if (!KEY) throw new Error("DEEPGRAM_API_KEY is not set (add it to .env.local).");
   const a = await speak("So the hardest part was, um,");
   const b = await speak("figuring out why some customers got charged twice when they double tapped pay.");
-  console.log("| Flux eot_threshold | Pause | One turn? | Cut in mid-sentence? | Reply after you finish |");
-  console.log("|---|---|---|---|---|");
+  console.log("| Flux eot_threshold | Pause | Steer | One turn? | Cut in mid-sentence? | Reply after you finish |");
+  console.log("|---|---|---|---|---|---|");
   for (const eot of EOTS) {
     for (const pause of PAUSES) {
-      const audio = Buffer.concat([a, silence(pause), b]);
-      const speechEnds = audio.length / BYTES_PER_SEC;
-      const r = await trial(eot, audio, speechEnds);
-      console.log(`| ${eot} | ${pause / 1000} s | ${r.turns === 1 ? "yes" : `no (${r.turns})`} | ${r.cutIn ? "yes" : "no"} | ${r.replyAfterFinish === null ? "–" : `${r.replyAfterFinish} s`} |`);
+      for (const steer of STEER) {
+        for (let t = 0; t < TRIALS; t++) {
+          const audio = Buffer.concat([a, silence(pause), b]);
+          const speechEnds = audio.length / BYTES_PER_SEC;
+          const r = await trial(eot, audio, speechEnds, steer);
+          console.log(`| ${eot} | ${pause / 1000} s | ${steer} | ${r.turns === 1 ? "yes" : `no (${r.turns})`} | ${r.cutIn ? "yes" : "no"} | ${r.replyAfterFinish === null ? "–" : `${r.replyAfterFinish} s`} |`);
+        }
+      }
     }
   }
 })().catch((err) => {
