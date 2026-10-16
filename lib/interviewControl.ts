@@ -252,11 +252,137 @@ export function directiveFor(action: Action, n: number, topics: Topic[] = []): s
 }
 
 /** The spoken fallback when the interviewer ignored a directive: said right after its reply, like the close. */
-export function moveOnLine(action: Action): string | null {
+export function moveOnLine(action: Action, topics: Topic[] = []): string | null {
   if (action.kind !== "move_on") return null;
   const to = action.to;
   if (to.kind === "practice") return `Actually, let's leave that there and move on. ${to.question}`;
-  if (to.kind === "topic") return `Actually, let's leave that there and move on. Tell me about ${to.title.toLowerCase()}.`;
+  if (to.kind === "topic") return `Actually, let's leave that there. I'd like to hear about ${to.title} from your resume. Walk me through it.`;
+  if (to.kind === "revisit") {
+    const t = topics.find((x) => x.id === to.note.story);
+    const what = to.note.missing.find((m) => !m.startsWith("any answer")) ?? "a specific detail";
+    return `Actually, let me go back to something from earlier${t ? `, ${t.title}` : ""}. Can you give me ${what.replace(/^a new /, "a ").replace(/^the number they were asked for$/, "a rough number")}?`;
+  }
+  // "Somewhere new" has no exact words; the directive alone carries it.
   return null;
 }
 
+/** Lines the controller makes the interviewer say start like this. */
+export const isMoveOnLine = (text: string) => /^Actually, (let's leave that there|let me go back to something from earlier)/.test(text.trim());
+
+
+// ---------------------------------------------------------------------------
+// The controller during a live interview (and the eval simulator, which runs the
+// same code). Deepgram only reports what the candidate said after they finish,
+// when the model is already writing its reply, so it acts in two places:
+// - when the candidate starts answering: if the follow-up budget for this story
+//   is spent or a practice question is overdue, the move-on doesn't depend on the
+//   answer, so a one-turn directive goes out now (UpdatePrompt, ~70 ms);
+// - when the interviewer replies: if a move-on was due (including ones that
+//   depend on the answer, like a complete answer or "I already told you") and the
+//   reply stayed on the story, the app says the move-on line at the next pause.
+// Measured on recorded interviews resumed in Deepgram (evals/steer.ts): directive
+// alone moved on 8/12, with the spoken fallback 12/12.
+
+const WARMUP_AGAIN = /walk me through your background|tell me (a bit )?about yourself|start from the beginning/i;
+
+export type ControllerOptions = {
+  policy: FollowUpPolicy;
+  /** The candidate's own practice questions (none in resume-only mode). */
+  practice: string[];
+  /** Resume topics to move to (none in general mode, where the resume is background). */
+  topics: Topic[];
+  /** Transcript lines (both speakers) by which each practice question should be on the table. */
+  practiceDeadlines?: number[];
+  /** True in the last few minutes: the time to come back to a noted answer. */
+  nearEnd?: () => boolean;
+};
+
+export class InterviewController {
+  private s = initialState();
+  private lines = 0;
+  private said = new Set<string>();
+  private lastQuestion = "";
+  private directives = 0;
+  /** A move-on the next interviewer reply should carry out. */
+  private expected: Action | null = null;
+  private directed = false;
+  readonly log: { line: number; event: string }[] = [];
+
+  constructor(private o: ControllerOptions) {}
+
+  get notes(): Note[] {
+    return this.s.notes;
+  }
+
+  private context(): DecideContext {
+    const deadlines = this.o.practiceDeadlines ?? [8, 14];
+    const next = this.o.practice.findIndex((q) => !this.s.asked.has(q));
+    return {
+      policy: this.o.policy,
+      practice: this.o.practice,
+      topics: this.o.topics,
+      practiceDue: next >= 0 && this.lines >= (deadlines[next] ?? Infinity),
+      nearEnd: this.o.nearEnd?.() ?? false,
+      turn: this.lines,
+    };
+  }
+
+  /** The candidate started answering. Returns a directive to send now, or null. */
+  beforeAnswer(): string | null {
+    if (this.expected || this.s.story === "warmup") return null;
+    const c = this.context();
+    if (this.s.followUps < c.policy.maxFollowUps && !c.practiceDue) return null;
+    // Spent budget or an overdue practice question: move on whatever they say.
+    const action = decide({ ...this.s, notes: [...this.s.notes], asked: new Set(this.s.asked) }, { grade: "shaky", missing: [] }, c);
+    if (action.kind !== "move_on") return null;
+    this.expected = action;
+    this.directed = true;
+    this.log.push({ line: this.lines, event: `directive: ${action.reason}` });
+    return directiveFor(action, ++this.directives, this.o.topics);
+  }
+
+  /** The candidate's answer, once transcribed. */
+  onCandidate(text: string) {
+    const grade = gradeAnswer(text, this.lastQuestion, { warmup: this.s.story === "warmup", said: this.said });
+    for (const n of numbersIn(text)) this.said.add(n);
+    const action = decide(this.s, grade, this.context());
+    if (action.kind === "move_on" && action.to.kind === "revisit") this.s.revisited.add(action.to.note.story);
+    if (action.kind === "move_on" && !this.expected) {
+      this.expected = action;
+      this.log.push({ line: this.lines, event: `move on after the answer: ${action.reason}` });
+    }
+    this.lines++;
+  }
+
+  /**
+   * The interviewer's line. Returns the move-on line for the app to say at the
+   * next pause when a move-on was due and this reply stayed on the story.
+   */
+  onInterviewer(text: string): string | null {
+    // Our own move-on line coming back from the voice service: already recorded.
+    if (isMoveOnLine(text)) return null;
+    let fallback: string | null = null;
+    if (this.expected) {
+      const kind = classifyQuestion(text, { practice: this.o.practice, topics: this.o.topics, warmup: false });
+      const left = !WARMUP_AGAIN.test(text) && (kind.kind === "practice" || kind.kind === "topic" || kind.kind === "transition" || kind.kind === "closing");
+      if (!left) {
+        fallback = moveOnLine(this.expected, this.o.topics);
+        this.log.push({ line: this.lines, event: fallback ? `${this.directed ? "directive ignored; " : ""}said the move-on line` : "move-on had no line" });
+      } else {
+        this.log.push({ line: this.lines, event: this.directed ? "directive followed" : "moved on by itself" });
+      }
+      this.expected = null;
+      this.directed = false;
+    }
+    this.lastQuestion = text;
+    const kind = classifyQuestion(text, { practice: this.o.practice, topics: this.o.topics, warmup: this.lines < 4 });
+    onInterviewerTurn(this.s, text, kind);
+    this.lines++;
+    // The fallback line is an interviewer line too; record it as the new story.
+    if (fallback) {
+      const k = classifyQuestion(fallback, { practice: this.o.practice, topics: this.o.topics, warmup: false });
+      onInterviewerTurn(this.s, fallback, k);
+    }
+    return fallback;
+  }
+}

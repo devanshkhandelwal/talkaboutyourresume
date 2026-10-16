@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { claude } from "@/lib/claude";
 import { getInterviewer } from "@/lib/interviewers";
+import { DEFAULT_POLICY, InterviewController } from "@/lib/interviewControl";
 import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, buildInterviewerPrompt, type InterviewMode } from "@/lib/prompts";
 import { buildAgentSettings } from "@/lib/agentSettings";
 import { DeepgramInterviewer } from "./deepgram";
@@ -33,6 +34,8 @@ export type SimOptions = {
   wrapAfter: number;
   /** Hard stop, in interviewer turns (production: the hard timer). */
   maxTurns: number;
+  /** Run the app's interview controller (lib/interviewControl.ts), as production does. */
+  control?: boolean;
 };
 
 export type SimResult = {
@@ -44,6 +47,8 @@ export type SimResult = {
   tokens: { interviewer: Usage; candidate: Usage };
   /** Seconds the Deepgram session was open (billed per minute), 0 for the Claude backend. */
   deepgramSeconds: number;
+  /** What the interview controller did, when it ran. */
+  control?: { log: { line: number; event: string }[]; notes: { story: string; turn: number; missing: string[] }[] };
 };
 
 type Usage = { input: number; output: number };
@@ -128,6 +133,18 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
   }
 
   let closing = false;
+  // The app's interview controller, with the same inputs as the live page.
+  const mode = o.mode ?? "mixed";
+  const control = o.control
+    ? new InterviewController({
+        policy: interviewer.followUps ?? DEFAULT_POLICY,
+        practice: mode === "resume" ? [] : o.questions,
+        topics: mode === "general" ? [] : profile.topics.map((t) => ({ id: t.id ?? t.title, title: t.title, claim: t.claim })),
+        nearEnd: () => interviewerTurns >= o.wrapAfter - 3,
+      })
+    : null;
+  control?.onInterviewer(transcript[0].text);
+  const promptAdditions: string[] = [];
 
   /** Claude messages from the transcript; consecutive turns by one speaker are merged. */
   function messages(interviewerRole: "user" | "assistant"): Anthropic.MessageParam[] {
@@ -143,7 +160,7 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
 
   async function interviewerReply(answer: string): Promise<string> {
     if (dg) return dg.say(answer);
-    const system = closing ? basePrompt + CLOSING_PROMPT : basePrompt;
+    const system = [basePrompt, ...promptAdditions, ...(closing ? [CLOSING_PROMPT] : [])].join("\n\n");
     return call(o.model, system, [{ role: "user", content: OPENING }, ...messages("assistant")], o.temperature, 400, tokens.interviewer);
   }
 
@@ -164,14 +181,25 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
     wrapStartedAt,
     tokens,
     deepgramSeconds: dg?.seconds() ?? 0,
+    control: control ? { log: control.log, notes: control.notes } : undefined,
   });
   try {
     for (;;) {
       // Candidate's turn: they see the interviewer as the other speaker.
       const answer = capWords((await call(o.candidateModel, candSystem, messages("user"), 1, 500, tokens.candidate)) || "(long pause)", 120);
+      // The candidate starts answering: a directive goes out now if the move-on doesn't depend on the answer.
+      const directive = closing ? null : control?.beforeAnswer();
+      if (directive) {
+        if (dg) await dg.addToPrompt(directive);
+        else promptAdditions.push(directive);
+      }
       transcript.push({ role: "candidate", text: answer });
+      if (!closing) control?.onCandidate(answer);
 
-      const reply = await interviewerReply(answer);
+      let reply = await interviewerReply(answer);
+      // The reply stayed on the story when a move-on was due: the app says the move-on line right after.
+      const moveOn = closing ? null : control?.onInterviewer(reply);
+      if (moveOn) reply = `${reply} ${await interviewerSays(moveOn)}`;
       transcript.push({ role: "interviewer", text: reply });
       interviewerTurns++;
 

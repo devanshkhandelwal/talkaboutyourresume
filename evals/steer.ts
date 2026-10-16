@@ -137,7 +137,7 @@ async function fallback(c: Case): Promise<Row> {
     let forced = false;
     if (!movedOn(reply, topics)) {
       forced = true;
-      reply = `${reply} ${await dg.speak(moveOnLine(action)!)}`;
+      reply = `${reply} ${await dg.speak(moveOnLine(action, topics)!)}`;
     }
     const next = await dg.say(answerFor(reply));
     const backToNormal = !asksPractice(next, c.question, topics) && !CONFUSED.test(next) && questionMarks(next) <= 1;

@@ -9,6 +9,7 @@ import { MicLevel } from "@/components/MicLevel";
 import { costLedger } from "@/lib/cost";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
+import { DEFAULT_POLICY, InterviewController } from "@/lib/interviewControl";
 import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE } from "@/lib/prompts";
 import { store } from "@/lib/store";
 import { InterviewAgent, type AgentStatus } from "@/lib/voice/agent";
@@ -42,6 +43,7 @@ export default function InterviewPage() {
   const [micCheck, setMicCheck] = useState<"off" | "starting" | "on" | "error">("off");
 
   const agentRef = useRef<InterviewAgent | null>(null);
+  const maxMsRef = useRef(0);
   const linesRef = useRef<TranscriptLine[]>([]);
   const startedAt = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -190,11 +192,37 @@ export default function InterviewPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't start the interview.");
 
+      // The app decides when to move on and the model words it (lib/interviewControl.ts).
+      // Not for a retry, which digs into one answer on purpose.
+      const mode = store.getSetup()?.mode ?? "mixed";
+      const persona = getInterviewer(interviewerId);
+      const controller = retryTopic
+        ? null
+        : new InterviewController({
+            policy: persona.followUps ?? DEFAULT_POLICY,
+            practice: mode === "resume" ? [] : questions.map((q) => q.replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 5),
+            topics: mode === "general" ? [] : profile.topics.map((t) => ({ id: t.id ?? t.title, title: t.title, claim: t.claim })),
+            // The last five minutes: time to come back to an answer that stayed vague.
+            nearEnd: () => maxMsRef.current > 0 && Date.now() - startedAt.current > maxMsRef.current - 5 * 60_000,
+          });
+
       const agent = new InterviewAgent({
         onStatus: setStatus,
+        onTurnStart: () => {
+          if (wrapping.current || !controller) return;
+          const directive = controller.beforeAnswer();
+          if (directive) agentRef.current?.steer(directive);
+        },
         onLine: (line) => {
           linesRef.current = [...linesRef.current, line];
           setLines(linesRef.current);
+          if (controller && !wrapping.current) {
+            if (line.role === "user") controller.onCandidate(line.content);
+            else {
+              const moveOn = controller.onInterviewer(line.content);
+              if (moveOn) agentRef.current?.sayAtNextPause(moveOn);
+            }
+          }
           if (!wrapping.current || line.role !== "assistant" || saidGoodbye.current) return;
           if (GOODBYE.test(line.content)) {
             saidGoodbye.current = true;
@@ -216,6 +244,7 @@ export default function InterviewPage() {
       setPhase("live");
 
       const maxMs = Number(data.maxMinutes) * 60_000;
+      maxMsRef.current = maxMs;
       timers.current.push(
         setTimeout(() => {
           wrapping.current = true;

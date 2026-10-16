@@ -20,6 +20,8 @@ export type AgentEvents = {
   onError: (message: string) => void;
   /** Called once when the voice connection closes, with how long it was open (Deepgram bills by this time). */
   onVoiceTime?: (ms: number) => void;
+  /** The candidate started a new answer (their first speech since their last line). */
+  onTurnStart?: () => void;
 };
 
 const OUTPUT_RATE = 24000;
@@ -47,8 +49,8 @@ export class InterviewAgent {
   /** The candidate has spoken since the interviewer last finished talking. */
   private userSpokeSinceAgent = false;
   /** A close waiting for a quiet moment (see closeAtNextPause). */
-  private pendingClose: { prompt: string; line: string } | null = null;
-  private lastClose: { prompt: string; line: string } | null = null;
+  private pendingClose: { prompt?: string; line: string } | null = null;
+  private lastClose: { prompt?: string; line: string } | null = null;
   private ended = false;
   private openedAt: number | null = null;
   /** Deepgram's own explanation, if it sent one before closing. */
@@ -228,7 +230,10 @@ export class InterviewAgent {
         this.agentSpeaking = false;
         this.userSpokeSinceAgent = true;
         // The first start since their last turn; pauses mid-answer don't reset it.
-        this.userTurnStartedAt ??= Date.now();
+        if (this.userTurnStartedAt === null) {
+          this.userTurnStartedAt = Date.now();
+          this.events.onTurnStart?.();
+        }
         this.events.onStatus(this.muted ? "muted" : "listening");
         break;
       case "AgentThinking":
@@ -343,8 +348,27 @@ export class InterviewAgent {
     if (!close || this.ended) return;
     this.pendingClose = null;
     this.lastClose = close;
-    this.addToPrompt(close.prompt);
+    if (close.prompt) this.addToPrompt(close.prompt);
     this.say(close.line);
+  }
+
+  /**
+   * A one-turn instruction for the interviewer's next reply, from the interview
+   * controller (lib/interviewControl.ts). Sent while the candidate is still talking.
+   */
+  steer(directive: string) {
+    this.addToPrompt(directive);
+  }
+
+  /**
+   * Has the interviewer say `line` at the next quiet moment, retrying if Deepgram
+   * refuses while someone is talking. The controller's move-on line; the close
+   * replaces it if both are pending.
+   */
+  sayAtNextPause(line: string) {
+    if (this.pendingClose?.prompt) return;
+    this.pendingClose = { line };
+    if (!this.agentSpeaking && !this.agentThinking && !this.userSpokeSinceAgent) this.flushClose();
   }
 
   /** Have the interviewer say a specific line now. */
