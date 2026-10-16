@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { dayKey, getPracticedDays } from "@/lib/practice";
+import { drawText3x5, textWidth3x5 } from "@/lib/pixelFont";
 import { currentTheme, setTheme } from "@/lib/theme";
 
 // A minimal 1-bit pixel-art room, drawn at low resolution and scaled up crisply:
@@ -16,6 +17,10 @@ import { currentTheme, setTheme } from "@/lib/theme";
 // (offset by OX, OY), so pixels stay fine and there's open wall around it.
 const W = 240;
 const H = 135;
+// The canvas has twice the grid's resolution. The room is drawn in whole grid
+// pixels (2 x 2 canvas pixels); only the calendar's month and dates use single
+// canvas pixels, so a 3 x 5 font fits in a calendar the size of the old one.
+const RES = 2;
 const OX = 48;
 const OY = 27;
 const FLOOR = 96;
@@ -90,6 +95,8 @@ function drawPerson(px: Px, ox: number, oy: number, blink: boolean) {
 }
 
 type Cal = {
+  /** The month's name, for the calendar's header. */
+  month: string;
   /** Weekday of the 1st (0 = Sunday) and the number of days this month. */
   first: number;
   days: number;
@@ -102,7 +109,7 @@ type Cal = {
   todayOn: boolean;
 };
 
-/** This month's layout and the days to cross out: your practiced days, else the days gone by. */
+/** This month's layout and the days to cross out: the days you practiced, and only those. */
 function monthCal(now: Date): Cal {
   const y = now.getFullYear();
   const m = now.getMonth();
@@ -113,8 +120,8 @@ function monthCal(now: Date): Cal {
     .filter((d) => d >= 1 && d <= 31)
     .sort((a, b) => a - b);
   const today = now.getDate();
-  const crossed = practiced.length ? practiced : Array.from({ length: today - 1 }, (_, i) => i + 1);
-  return { first: new Date(y, m, 1).getDay(), days: new Date(y, m + 1, 0).getDate(), today, crossed, shown: crossed.length, todayOn: true };
+  const month = now.toLocaleDateString("en-US", { month: "long" }).toUpperCase();
+  return { month, first: new Date(y, m, 1).getDay(), days: new Date(y, m + 1, 0).getDate(), today, crossed: practiced, shown: practiced.length, todayOn: true };
 }
 
 type Fx = {
@@ -152,7 +159,7 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
   const I = dark ? "#ffffff" : "#000000"; // ink
   const P = dark ? "#000000" : "#ffffff"; // paper
   const px: Px = (x, y, c) => {
-    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    // No bounds check: the room is drawn offset (OX, OY), and the canvas clips anyway.
     ctx.fillStyle = c;
     ctx.fillRect(x, y, 1, 1);
   };
@@ -169,7 +176,7 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
   };
 
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(RES, 0, 0, RES, 0, 0);
   rect(0, 0, W, H, P);
 
   // Wall: a ceiling line, a baseboard and the floor. No texture, so the room stays quiet.
@@ -179,7 +186,9 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
   rect(0, floorY, W, 1, I);
 
   // Everything else is laid out on the 192 x 108 grid, shifted toward the lower right.
-  ctx.setTransform(1, 0, 0, 1, OX, OY);
+  ctx.setTransform(RES, 0, 0, RES, OX * RES, OY * RES);
+  // Half-size pixels, in half-grid units, for the calendar's text.
+  const fine = (x: number, y: number, w: number, h: number, c: string) => rect(x / RES, y / RES, w / RES, h / RES, c);
 
   // Window: a plain frame with a cross of mullions and a sill. The sky follows the
   // visitor's clock: a sun that crosses the panes from 6 am to 7 pm, then a moon
@@ -208,30 +217,41 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
   for (let y = 0; y < 6; y++) rect(124 - y, 11 + y, 9 + y * 2, 1, I);
   rect(126, 17, 5, 1, P);
 
-  // A wall calendar on a nail: a solid header with two rings, then this month's
-  // days. Practiced days are crossed out (or, before any practice, the days gone
-  // by), and today is a solid square. It grows a row for six-week months.
-  const cx = 78;
-  const cy = 18;
+  // A wall calendar on two rings: the month in a solid header, then the dates.
+  // Frame and header are in grid pixels like the rest of the room; the text and
+  // marks use half-size pixels (see RES). Days you practiced are crossed out, and
+  // only those; today is a solid box. It grows a row for six-week months.
+  const cx = 73;
+  const cy = 17;
+  const cw = 42;
   const rows = Math.ceil((cal.first + cal.days) / 7);
-  rect(cx + 15, cy - 2, 2, 2, I);
-  box(cx, cy, 32, 9 + rows * 4);
-  rect(cx, cy, 32, 5, I);
-  rect(cx + 7, cy + 2, 2, 1, P);
-  rect(cx + 23, cy + 2, 2, 1, P);
+  // Header, the date rows (9 half-pixels each), a margin and the frame.
+  const ch = Math.ceil((15 + rows * 9) / 2);
+  box(cx, cy, cw, ch);
+  rect(cx, cy, cw, 5, I);
+  for (const rx of [cx + 8, cx + cw - 10]) rect(rx, cy - 2, 2, 2, I);
+  const kx = cx * RES;
+  const ky = cy * RES;
+  drawText3x5(cal.month, kx + Math.floor((cw * RES - textWidth3x5(cal.month)) / 2), ky + 3, (x, y) => fine(x, y, 1, 1, P));
   const shown = new Set(cal.crossed.slice(0, cal.shown));
   for (let day = 1; day <= cal.days; day++) {
     const slot = cal.first + day - 1;
-    const x = cx + 3 + (slot % 7) * 4;
-    const y = cy + 7 + Math.floor(slot / 7) * 4;
-    if (day === cal.today && cal.todayOn && !shown.has(day)) rect(x, y, 3, 3, I);
-    else if (shown.has(day)) {
-      px(x, y, I);
-      px(x + 2, y, I);
-      px(x + 1, y + 1, I);
-      px(x, y + 2, I);
-      px(x + 2, y + 2, I);
-    } else px(x + 1, y + 1, I);
+    // Cells are 7 x 5 half-pixels with 4 between them; numbers sit at the cell's right edge.
+    const x = kx + 5 + (slot % 7) * 11;
+    const y = ky + 14 + Math.floor(slot / 7) * 9;
+    const isToday = day === cal.today && cal.todayOn;
+    const ink = isToday ? P : I;
+    if (isToday) fine(x - 2, y - 2, 11, 9, I);
+    if (shown.has(day)) {
+      // A 5 x 5 cross in place of the number.
+      for (let i = 0; i < 5; i++) {
+        fine(x + 1 + i, y + i, 1, 1, ink);
+        fine(x + 5 - i, y + i, 1, 1, ink);
+      }
+    } else {
+      const label = String(day);
+      drawText3x5(label, x + 7 - textWidth3x5(label), y, (px_, py_) => fine(px_, py_, 1, 1, ink));
+    }
   }
 
   // The desk: top, front edge, apron, a leg and a drawer pedestal.
@@ -390,8 +410,8 @@ export function PixelScene({ position = "100% 50%" }: { position?: string }) {
   return (
     <canvas
       ref={ref}
-      width={W}
-      height={H}
+      width={W * RES}
+      height={H * RES}
       aria-hidden
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: position, imageRendering: "pixelated" }}
     />
