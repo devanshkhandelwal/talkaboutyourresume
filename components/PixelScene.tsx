@@ -9,9 +9,9 @@ import { currentTheme, setTheme } from "@/lib/theme";
 // this month with the practiced days crossed off. Everything is black or white;
 // the only color is the laptop's video call. Dark mode inverts the room.
 // Small things to find: the window follows the visitor's clock (a sun by day, a
-// moon and stars at night, when the lamp throws light), clicking the lamp turns
-// it off (dark mode), a plant grows with the days practiced, the interviewer
-// blinks, and the coffee cools unless you click the mug to top it up.
+// moon and stars at night), clicking the lamp turns it off (dark mode), a plant
+// grows with the days practiced, the interviewer blinks, and the coffee cools
+// unless you click the mug to top it up.
 // The room is laid out on a 192 x 108 grid and placed on a larger 240 x 135 canvas
 // (offset by OX, OY), so pixels stay fine and there's open wall around it.
 const W = 240;
@@ -203,17 +203,10 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
   rect(143, 48, 42, 2, I);
 
   // Pendant lamp. Its bulb is paper-colored, so it reads as on in the light theme
-  // and off in the dark one; click it to switch. At night, when it's on, it throws
-  // a dithered cone of light down to the desk.
+  // and off in the dark one; click it to switch.
   rect(128, 2, 1, 9, I);
   for (let y = 0; y < 6; y++) rect(124 - y, 11 + y, 9 + y * 2, 1, I);
   rect(126, 17, 5, 1, P);
-  if (night && !dark) {
-    for (let y = 20; y < TOP - 2; y += 3) {
-      const half = 7 + Math.floor((y - 17) * 0.4);
-      for (let x = 128 - half; x <= 128 + half; x++) if ((x + y) % 6 === 0) px(x, y, I);
-    }
-  }
 
   // A wall calendar on a nail: a solid header with two rings, then this month's
   // days. Practiced days are crossed out (or, before any practice, the days gone
