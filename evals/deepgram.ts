@@ -33,6 +33,9 @@ export class DeepgramInterviewer {
     if (!key) throw new Error("DEEPGRAM_API_KEY is not set (add it to .env.local).");
     this.waitForSettingsOnly = !(settings as { agent?: { greeting?: string } })?.agent?.greeting;
     const greeting = this.nextTurn();
+    // If connecting fails, start() rejects below and nobody awaits `greeting`; its
+    // later rejection must not crash the whole eval run.
+    greeting.catch(() => {});
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(AGENT_URL, ["token", key]);
       ws.binaryType = "arraybuffer";
