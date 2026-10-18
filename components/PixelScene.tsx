@@ -97,7 +97,7 @@ function drawPerson(px: Px, ox: number, oy: number, blink: boolean) {
 type Cal = {
   /** The month, abbreviated ("OCT"), for the calendar's header. */
   month: string;
-  /** Weekday of the 1st (0 = Sunday) and the number of days this month. */
+  /** Weekday of the 1st (0 = Monday) and the number of days this month. */
   first: number;
   days: number;
   today: number;
@@ -121,7 +121,7 @@ function monthCal(now: Date): Cal {
     .sort((a, b) => a - b);
   const today = now.getDate();
   const month = now.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
-  return { month, first: new Date(y, m, 1).getDay(), days: new Date(y, m + 1, 0).getDate(), today, crossed: practiced, shown: practiced.length, todayOn: true };
+  return { month, first: (new Date(y, m, 1).getDay() + 6) % 7, days: new Date(y, m + 1, 0).getDate(), today, crossed: practiced, shown: practiced.length, todayOn: true };
 }
 
 type Fx = {
@@ -219,7 +219,8 @@ function draw(ctx: CanvasRenderingContext2D, dark: boolean, cal: Cal, fx: Fx) {
 
   // A wall calendar on a nail: the month in a solid header (half-size pixels, see
   // RES), then a dot for each day. Days you practiced are crossed out, and only
-  // those; today is a solid square. It grows a row for six-week months.
+  // those; today is a solid square. Weeks start on Monday, and it grows a row
+  // for six-week months.
   const cx = 78;
   const cy = 18;
   const rows = Math.ceil((cal.first + cal.days) / 7);
