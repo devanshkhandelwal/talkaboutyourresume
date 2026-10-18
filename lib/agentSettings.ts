@@ -29,7 +29,7 @@ export const LISTEN = { eotThreshold: 0.9, eotTimeoutMs: 7000 };
 export const END_INTERVIEW = {
   name: "end_interview",
   description:
-    "End the interview now. Only after the candidate was abusive again despite one warning, or when they clearly asked to stop. Say a short closing line before calling it.",
+    "End the interview early. Only after the candidate was abusive again despite one warning, or when they clearly asked to stop; say a short closing line first. Never call it to end a normal interview: after your goodbye, the app ends the call.",
   parameters: {
     type: "object",
     properties: { reason: { type: "string", enum: ["abusive", "candidate_asked"] } },

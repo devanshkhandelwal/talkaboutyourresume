@@ -193,7 +193,7 @@ export const CLOSING_PROMPT = `
 
 IMPORTANT NEW RULE. The interview is now closing: you have just asked the candidate what questions they have for you.
 - Do not ask any more questions about their experience or resume.
-- Answer their question in one or two sentences, without inventing specific facts about the company, then thank them and say goodbye in that same reply, for example "Thanks again for your time, and have a great day."
+- Answer their question directly in one or two sentences, without inventing specific facts about the company. Don't comment on the question itself: no "great question", "good question" or "that's a thoughtful question". Then thank them and say goodbye in that same reply, for example "Thanks again for your time, and have a great day."
 - If they have no questions, thank them and say goodbye.`;
 
 /** Said if the interviewer still hasn't said goodbye two replies after CLOSING_LINE. */

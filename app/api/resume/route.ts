@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { trackEvent, trackUpload, type UploadOutcome } from "@/lib/limits";
+import { clientIp, takeDailyResumeRead, trackEvent, trackUpload, type UploadOutcome } from "@/lib/limits";
 import { askJson, MODELS } from "@/lib/claude";
 import type { ClaudeUsage, ResumeProfile, ResumeTopic } from "@/lib/types";
 
@@ -67,6 +67,10 @@ const SCHEMA = {
 };
 
 export async function POST(req: NextRequest) {
+  // Fails open if Redis is down, like the interview limit: a beta shouldn't go dark over it.
+  if (!(await takeDailyResumeRead(clientIp(req)).catch(() => true))) {
+    return NextResponse.json({ error: "You've read a lot of resumes today. Try again tomorrow." }, { status: 429 });
+  }
   let file: File | null = null;
   // Type, size and outcome only; the file name and content are never stored.
   const recordUpload = (outcome: UploadOutcome) => {

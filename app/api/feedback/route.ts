@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { askJson, MODELS } from "@/lib/claude";
-import { trackEvent } from "@/lib/limits";
+import { clientIp, takeDailyFeedback, trackEvent } from "@/lib/limits";
 import type { ClaudeUsage, FeedbackReport, PlanComparison, PlannedAnswer, ResumeProfile, TranscriptLine } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -101,6 +101,10 @@ function cleanPlans(input: unknown): PlannedAnswer[] {
 const strings = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 300)).filter(Boolean).slice(0, n) : []);
 
 export async function POST(req: NextRequest) {
+  // Fails open if Redis is down, like the interview limit.
+  if (!(await takeDailyFeedback(clientIp(req)).catch(() => true))) {
+    return NextResponse.json({ error: "That's a lot of feedback for one day. Try again tomorrow." }, { status: 429 });
+  }
   try {
     const { transcript, profile, plans: rawPlans } = (await req.json()) as {
       transcript: TranscriptLine[];

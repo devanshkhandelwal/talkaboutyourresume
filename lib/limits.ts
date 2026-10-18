@@ -44,15 +44,30 @@ export function clientIp(req: NextRequest): string {
   );
 }
 
-/** Returns true if this IP is still under its daily interview limit. */
-export async function takeDailyInterview(ip: string): Promise<boolean> {
+/** Counts one use of `kind` by this IP today; true while it's within `limit`. */
+async function takeDaily(kind: string, ip: string, limit: number): Promise<boolean> {
   if (!redisEnabled) return true;
-  const limit = Number(process.env.DAILY_INTERVIEWS_PER_IP || 3);
-  const day = easternDay();
-  const key = `interviews:${day}:${ip}`;
+  const key = `${kind}:${easternDay()}:${ip}`;
   const count = Number(await redis(["INCR", key]));
   if (count === 1) await redis(["EXPIRE", key, 60 * 60 * 26]);
   return count <= limit;
+}
+
+/** Returns true if this IP is still under its daily interview limit. */
+export function takeDailyInterview(ip: string): Promise<boolean> {
+  return takeDaily("interviews", ip, Number(process.env.DAILY_INTERVIEWS_PER_IP || 3));
+}
+
+/**
+ * Daily caps on the routes that each cost a Claude call, so nobody can run up the
+ * bill by calling them in a loop. Generous for real use: a few interviews a day,
+ * each reading a resume and writing one report, with room for retries.
+ */
+export function takeDailyResumeRead(ip: string): Promise<boolean> {
+  return takeDaily("resume-reads", ip, Number(process.env.DAILY_RESUME_READS_PER_IP || 15));
+}
+export function takeDailyFeedback(ip: string): Promise<boolean> {
+  return takeDaily("feedback", ip, Number(process.env.DAILY_FEEDBACK_PER_IP || 15));
 }
 
 export async function saveEmail(email: string, meta: Record<string, string>) {
