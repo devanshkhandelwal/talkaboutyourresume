@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/Chrome";
 import { INTERVIEWERS } from "@/lib/interviewers";
 import { INTERVIEW_MODES } from "@/lib/prompts";
 import { EVENTS, STATS_TIME_ZONE, readEvents, readUploads, redisEnabled, type UploadRecord } from "@/lib/limits";
+import { LOW_BALANCE_USD, checkVoiceUsage, type VoiceWatch } from "@/lib/voiceWatch";
 
 // Private usage numbers: /stats?key=<STATS_KEY>. Anything else is a 404, and
 // the page is a 404 everywhere until STATS_KEY is set.
@@ -44,6 +45,7 @@ function sum(days: { counts: Record<string, number> }[], event: string) {
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ key?: string }> }) {
   const { key } = await searchParams;
   if (!allowed(key)) notFound();
+  const watch = await checkVoiceUsage(48);
 
   if (!redisEnabled) {
     return (
@@ -52,6 +54,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         <main className="wrap" style={{ paddingTop: 24, paddingBottom: 96 }}>
           <h1 className="display h2">Stats</h1>
           <p className="muted">Upstash isn&apos;t connected, so nothing is being counted.</p>
+          <VoiceWatchCard w={watch} />
         </main>
       </>
     );
@@ -69,6 +72,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       <main className="wrap" style={{ maxWidth: "calc(1080px + 2 * var(--gutter))", paddingTop: 24, paddingBottom: 96 }}>
         <h1 className="display h2">Stats</h1>
         <p className="muted" style={{ margin: "8px 0 32px" }}>Anonymous counts, by day in Eastern Time. Page views and visitors are in Vercel Analytics.</p>
+
+        <VoiceWatchCard w={watch} />
 
         <section aria-labelledby="funnel-title" className="card" style={{ padding: 24 }}>
           <h2 id="funnel-title" style={{ margin: "0 0 16px", fontSize: "1.125rem", fontWeight: 600 }}>Last 7 days, upload to feedback</h2>
@@ -251,3 +256,68 @@ function StatTable({ first, rows }: { first: string; rows: { label: string; toda
     </table>
   );
 }
+
+/**
+ * Voice-agent sessions on the Deepgram account in the last 48 hours, from
+ * Deepgram's own log, with any that don't look like this app's (lib/voiceWatch.ts).
+ */
+function VoiceWatchCard({ w }: { w: VoiceWatch }) {
+  const low = w.balanceUsd !== null && w.balanceUsd < LOW_BALANCE_USD;
+  const alarm = w.flagged.length > 0 || low;
+  return (
+    <section aria-labelledby="voice-title" className="card" style={{ padding: 24, marginBottom: 20, borderColor: alarm ? "var(--bad, #c0392b)" : undefined }}>
+      <h2 id="voice-title" style={{ margin: "0 0 4px", fontSize: "1.125rem", fontWeight: 600 }}>
+        Voice usage, last 48 hours
+      </h2>
+      <p className="muted" style={{ margin: "0 0 16px" }}>
+        From Deepgram&apos;s request log. Flags sessions this app didn&apos;t start: untagged, over the time cap, or on another model or tier.
+      </p>
+      {w.error ? (
+        <p className="error" role="alert" style={{ margin: 0 }}>
+          Couldn&apos;t check: {w.error}
+        </p>
+      ) : (
+        <>
+          <p style={{ margin: 0 }}>
+            {w.sessions} sessions, ${w.usd.toFixed(2)}.{" "}
+            {w.balanceUsd !== null && (
+              <span style={{ fontWeight: low ? 600 : undefined }}>
+                Balance ${w.balanceUsd.toFixed(2)}
+                {low ? `, under $${LOW_BALANCE_USD}: top up soon.` : "."}
+              </span>
+            )}
+          </p>
+          {w.flagged.length === 0 ? (
+            <p className="muted" style={{ margin: "8px 0 0" }}>Nothing unusual.</p>
+          ) : (
+            <table style={{ width: "100%", marginTop: 12, borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ textAlign: "left" }}>
+                  <th style={{ padding: "4px 8px 4px 0" }}>Started</th>
+                  <th style={{ padding: "4px 8px" }}>Minutes</th>
+                  <th style={{ padding: "4px 8px" }}>Cost</th>
+                  <th style={{ padding: "4px 8px" }}>Model</th>
+                  <th style={{ padding: "4px 0 4px 8px" }}>Why it&apos;s flagged</th>
+                </tr>
+              </thead>
+              <tbody>
+                {w.flagged.slice(0, 25).map((f, i) => (
+                  <tr key={i} style={{ borderTop: "1px solid var(--line)" }}>
+                    <td style={{ padding: "6px 8px 6px 0" }}>
+                      {new Date(f.created).toLocaleString("en-US", { timeZone: STATS_TIME_ZONE, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </td>
+                    <td style={{ padding: "6px 8px" }}>{f.minutes}</td>
+                    <td style={{ padding: "6px 8px" }}>${f.usd.toFixed(2)}</td>
+                    <td style={{ padding: "6px 8px" }}>{f.model}</td>
+                    <td style={{ padding: "6px 0 6px 8px" }}>{f.reasons.join("; ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
