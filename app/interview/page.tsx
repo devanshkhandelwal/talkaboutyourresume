@@ -10,13 +10,16 @@ import { costLedger } from "@/lib/cost";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
 import { DEFAULT_POLICY, InterviewController } from "@/lib/interviewControl";
-import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE } from "@/lib/prompts";
+import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, SILENCE, SILENCE_LINES } from "@/lib/prompts";
 import { store } from "@/lib/store";
 import { InterviewAgent, type AgentStatus } from "@/lib/voice/agent";
 import type { InterviewSession, ResumeProfile, TranscriptLine } from "@/lib/types";
 
 
 type Phase = "lobby" | "starting" | "live" | "ending";
+
+/** The app's own lines for a quiet candidate, to tell them apart from the interviewer's replies. */
+const silenceLines = new Set<string>(Object.values(SILENCE_LINES));
 
 export default function InterviewPage() {
   const router = useRouter();
@@ -221,6 +224,8 @@ export default function InterviewPage() {
         onLine: (line) => {
           linesRef.current = [...linesRef.current, line];
           setLines(linesRef.current);
+          // A silence nudge isn't a reply: keep it out of the controller and the close.
+          if (line.role === "assistant" && silenceLines.has(line.content)) return;
           if (controller && !wrapping.current) {
             if (line.role === "user") controller.onCandidate(line.content);
             else {
@@ -245,6 +250,15 @@ export default function InterviewPage() {
           endedByRef.current = { by: "interviewer", reason };
           finishRef.current();
         },
+        onSilenceEnd: () => {
+          endedByRef.current = { by: "interviewer", reason: "inactive" };
+          finishRef.current();
+        },
+      });
+      agent.watchSilence({
+        ...SILENCE,
+        line: (step, muted) =>
+          step === "warn" ? SILENCE_LINES.warn : muted ? SILENCE_LINES.nudgeMuted : wrapping.current ? SILENCE_LINES.nudgeClosing : SILENCE_LINES.nudge,
       });
       agentRef.current = agent;
       await agent.start(data.voice);

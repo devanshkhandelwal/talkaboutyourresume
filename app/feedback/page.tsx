@@ -281,6 +281,12 @@ export default function FeedbackPage() {
           </p>
         )}
 
+        {session.endedBy?.reason === "inactive" && !tooShort && (
+          <p className="muted" style={{ fontSize: "1.125rem" }}>
+            The interview ended after a long silence, so this covers the answers you gave.
+          </p>
+        )}
+
         {tooShort && !conduct && !wellbeing && (
           <p className="muted" style={{ fontSize: "1.125rem" }}>
             We need a few answers to give you useful feedback. Try a full interview when you have 10 to 15 minutes.

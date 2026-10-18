@@ -24,6 +24,18 @@ export type AgentEvents = {
   onTurnStart?: () => void;
   /** The interviewer ended the interview itself (end_interview), after its closing line played. */
   onInterviewerEnded?: (reason: EndReason) => void;
+  /** The candidate stayed quiet through the nudge and the warning (see watchSilence). */
+  onSilenceEnd?: () => void;
+};
+
+/** What to do when the candidate goes quiet (see watchSilence). */
+export type SilenceWatch = {
+  /** Silence after the interviewer finishes talking before each step: a nudge, a warning, then the end. */
+  nudgeMs: number;
+  warnMs: number;
+  endMs: number;
+  /** The line the interviewer says for a step. */
+  line: (step: "nudge" | "warn", muted: boolean) => string;
 };
 
 const OUTPUT_RATE = 24000;
@@ -94,6 +106,10 @@ export class InterviewAgent {
   /** An end_interview call waiting for the closing line to finish playing. */
   private pendingEnd: { id: string; reason: EndReason } | null = null;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Silence handling: the steps, how far along (0 nudge, 1 warn, 2 end), and its timer. */
+  private silence: SilenceWatch | null = null;
+  private silenceStep = 0;
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private events: AgentEvents) {}
 
@@ -377,6 +393,8 @@ export class InterviewAgent {
       case "UserStartedSpeaking":
         // Barge-in: the candidate talked over the interviewer, so stop playback.
         this.stopPlayback();
+        this.clearSilence();
+        this.silenceStep = 0;
         this.agentSpeaking = false;
         this.userSpokeSinceAgent = true;
         // The first start since their last turn; pauses mid-answer don't reset it.
@@ -387,10 +405,12 @@ export class InterviewAgent {
         this.events.onStatus(this.muted ? "muted" : "listening");
         break;
       case "AgentThinking":
+        this.clearSilence();
         this.agentThinking = true;
         this.events.onStatus("thinking");
         break;
       case "AgentStartedSpeaking":
+        this.clearSilence();
         this.agentThinking = false;
         this.agentSpeaking = true;
         this.events.onStatus("speaking");
@@ -409,6 +429,8 @@ export class InterviewAgent {
           if (this.pendingEnd) this.scheduleEnd(600);
           // ...and a good moment to move to the next relay connection, if one is waiting.
           this.trySwitch();
+          // Their turn: start counting silence.
+          this.armSilence();
         }, wait);
         break;
       }
@@ -567,6 +589,38 @@ export class InterviewAgent {
     if (!this.agentSpeaking && !this.agentThinking && !this.userSpokeSinceAgent) this.flushClose();
   }
 
+  /**
+   * Handles a candidate who goes quiet. Deepgram only replies to speech, so with no
+   * answer at all the interviewer would wait forever. Once the interviewer finishes
+   * talking and nobody speaks: a nudge, then a warning, then onSilenceEnd. Any
+   * speech from the candidate starts it over.
+   */
+  watchSilence(watch: SilenceWatch) {
+    this.silence = watch;
+  }
+
+  private armSilence() {
+    this.clearSilence();
+    const w = this.silence;
+    if (!w || this.ended || this.pendingEnd) return;
+    const ms = [w.nudgeMs, w.warnMs, w.endMs][this.silenceStep];
+    this.silenceTimer = setTimeout(() => {
+      this.silenceTimer = null;
+      if (this.ended || this.pendingEnd || this.agentSpeaking || this.agentThinking || this.userSpokeSinceAgent) return;
+      if (this.silenceStep >= 2) return this.events.onSilenceEnd?.();
+      const line = w.line(this.silenceStep === 0 ? "nudge" : "warn", this.muted);
+      this.silenceStep++;
+      // Not a close: if Deepgram refuses this line, don't bring back the last close.
+      this.lastClose = null;
+      this.say(line);
+    }, ms);
+  }
+
+  private clearSilence() {
+    if (this.silenceTimer) clearTimeout(this.silenceTimer);
+    this.silenceTimer = null;
+  }
+
   /** Have the interviewer say a specific line now. */
   say(message: string) {
     this.sendJson({ type: "InjectAgentMessage", message });
@@ -613,6 +667,7 @@ export class InterviewAgent {
     this.closeVoiceClock();
     if (this.keepAlive) clearInterval(this.keepAlive);
     if (this.endTimer) clearTimeout(this.endTimer);
+    this.clearSilence();
     this.rolloverTimers.forEach(clearTimeout);
     this.dropNext();
     this.stopPlayback();
