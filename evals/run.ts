@@ -38,6 +38,8 @@ type Options = {
   label: string;
   /** Run the interview controller (lib/interviewControl.ts); "--control off" for the prompt alone. */
   control: boolean;
+  /** Keep the conversation in the prompt, as production does; "--memory off" to compare. */
+  memory: boolean;
 };
 
 function parseArgs(argv: string[]): Options {
@@ -64,6 +66,7 @@ function parseArgs(argv: string[]): Options {
     concurrency: Number(get("concurrency") ?? 4),
     label: get("label") ?? "",
     control: get("control") !== "off",
+    memory: get("memory") !== "off",
   };
 }
 
@@ -486,6 +489,7 @@ async function main() {
         wrapAfter: o.wrapAfter,
         maxTurns: o.maxTurns,
         control: o.control,
+        memory: o.memory,
       });
       const score = await judgeInterview({ sim, fixture: job.fixture, candidate: job.candidate, questions: PRACTICE_QUESTIONS, judgeModel: o.judgeModel });
       console.error(`  [${++done}/${todo.length}] ${job.id}: ${sim.transcript.length} turns, ${sim.ended}`);

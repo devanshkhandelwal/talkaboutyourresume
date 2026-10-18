@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { claude } from "@/lib/claude";
 import { getInterviewer } from "@/lib/interviewers";
 import { DEFAULT_POLICY, InterviewController } from "@/lib/interviewControl";
-import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, buildInterviewerPrompt, type InterviewMode } from "@/lib/prompts";
+import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, buildInterviewerPrompt, thinkPrompt, type InterviewMode } from "@/lib/prompts";
 import { buildAgentSettings } from "@/lib/agentSettings";
 import { DeepgramInterviewer } from "./deepgram";
 import { INJECTED_FLAG, type Candidate } from "./candidates";
@@ -36,6 +36,8 @@ export type SimOptions = {
   maxTurns: number;
   /** Run the app's interview controller (lib/interviewControl.ts), as production does. */
   control?: boolean;
+  /** Keep the whole conversation in the prompt, refreshed every turn, as production does (default on). */
+  memory?: boolean;
 };
 
 export type SimResult = {
@@ -168,8 +170,17 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
     return call(o.model, system, [{ role: "user", content: OPENING }, ...messages("assistant")], o.temperature, 400, tokens.interviewer);
   }
 
+  // What the app has added to the prompt (the close), kept when the prompt is replaced.
+  const additions: string[] = [];
+  /** The prompt as the live page sends it with UpdateThink: base, additions, the conversation, a directive. */
+  const livePrompt = (directive: string | null) =>
+    o.memory === false
+      ? [basePrompt, ...additions, ...(directive ? [directive] : [])].join("\n\n")
+      : thinkPrompt(basePrompt, additions, transcript.map((t) => ({ role: t.role === "candidate" ? "user" : "assistant", content: t.text })), directive);
+
   /** A line the app makes the interviewer say word for word. */
   async function interviewerSays(line: string, prompt?: string): Promise<string> {
+    if (prompt) additions.push(prompt);
     if (!dg) return line;
     if (prompt) await dg.addToPrompt(prompt);
     return dg.speak(line);
@@ -194,10 +205,9 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
       const answer = capWords((await call(o.candidateModel, candSystem, messages("user"), 1, 500, tokens.candidate)) || "(long pause)", 120);
       // The candidate starts answering: a directive goes out now if the move-on doesn't depend on the answer.
       const directive = closing ? null : control?.beforeAnswer();
-      if (directive) {
-        directiveNow = directive;
-        if (dg) await dg.updateThink({ ...settings.agent.think, prompt: `${basePrompt}\n\n${directive}` });
-      }
+      if (directive) directiveNow = directive;
+      // Every turn: the live page swaps in the directive, or just refreshes the conversation.
+      if (dg && (directive || o.memory !== false)) await dg.updateThink({ ...settings.agent.think, prompt: livePrompt(directive ?? null) });
       transcript.push({ role: "candidate", text: answer });
       if (!closing) control?.onCandidate(answer);
 
@@ -205,7 +215,7 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
       if (directiveNow) {
         // Spent: swap it back out, like the live page does when the reply arrives.
         directiveNow = null;
-        if (dg) await dg.updateThink(settings.agent.think);
+        if (dg) await dg.updateThink({ ...settings.agent.think, prompt: livePrompt(null) });
       }
       // The reply stayed on the story when a move-on was due: the app says the move-on line right after.
       const moveOn = closing ? null : control?.onInterviewer(reply);
