@@ -65,8 +65,9 @@ export default function InterviewPage() {
       setFocusNote(s.focusNote);
       setQuestions(s.questions ?? []);
     }
-    const retry = new URLSearchParams(window.location.search).get("retry");
-    if (retry) setRetryTopic(retry);
+    // Only a retry this tab's results page set up; the URL just says "retry".
+    const retry = new URLSearchParams(window.location.search).has("retry") ? store.getRetry() : null;
+    if (retry) setRetryTopic(retry.slice(0, 300));
     setLoaded(true);
   }, []);
 

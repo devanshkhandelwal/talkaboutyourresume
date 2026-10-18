@@ -12,7 +12,8 @@
     "eval:steer": "tsx evals/steer.ts",
     "eval:endcall": "tsx evals/endcall.ts",
     "eval:closing": "tsx evals/closing.ts",
-    "eval:attacks": "tsx evals/attacks.ts"
+    "eval:attacks": "tsx evals/attacks.ts",
+    "eval:redteam": "tsx evals/redteam.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
