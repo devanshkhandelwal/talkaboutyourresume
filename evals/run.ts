@@ -534,8 +534,10 @@ async function main() {
       2,
     ),
   );
-  // The full results are written; the checkpoint has served its purpose.
-  rmSync(partialPath, { force: true });
+  // Keep the checkpoint while any interview failed, so --resume retries just those.
+  const failed = outcomes.filter((x) => x.error).length;
+  if (failed) console.error(`\n${failed} interviews failed. Retry them with: --resume ${join("evals", "results", `${name}.partial.jsonl`)}`);
+  else rmSync(partialPath, { force: true });
   console.log(markdown.split("\n## By candidate")[0]);
   console.error(`\nFull report: evals/results/${name}.md`);
 }
