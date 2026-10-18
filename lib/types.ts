@@ -91,7 +91,8 @@ export type InterviewSession = {
   /** Missing on sessions recorded before Stats for nerds. */
   voice?: VoiceStats;
   /** Set when the interviewer ended the call itself (end_interview). */
-  endedBy?: { by: "interviewer"; reason: "abusive" | "candidate_asked" | "wellbeing" };
+  /** Set when the interview ended early: by the interviewer (end_interview), or after a long silence. */
+  endedBy?: { by: "interviewer"; reason: "abusive" | "candidate_asked" | "wellbeing" | "inactive" };
 };
 
 /** Public response of /api/deepgram-balance. */

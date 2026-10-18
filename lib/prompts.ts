@@ -204,3 +204,16 @@ IMPORTANT NEW RULE. The interview is now closing: you have just asked the candid
 
 /** Said if the interviewer still hasn't said goodbye two replies after CLOSING_LINE. */
 export const GOODBYE_LINE = "Thanks again for your time today, and have a great day.";
+
+// When the candidate goes quiet, the app (not the model: Deepgram only replies to
+// speech) says these after the interviewer finishes talking: a nudge after 10 s of
+// silence, a warning after 30 s more, and it ends the interview 5 s after that.
+// Any speech starts the count over. See watchSilence in lib/voice/agent.ts.
+export const SILENCE = { nudgeMs: 10_000, warnMs: 30_000, endMs: 5_000 };
+export const SILENCE_LINES = {
+  nudge: "Take your time. Want me to repeat the question?",
+  /** At the close, after "what questions do you have for me?". */
+  nudgeClosing: "Take your time. And if you don't have any questions, that's fine too.",
+  nudgeMuted: "Looks like you're on mute. Unmute whenever you're ready.",
+  warn: "Are you still there? I'll end the interview if I don't hear from you.",
+};
