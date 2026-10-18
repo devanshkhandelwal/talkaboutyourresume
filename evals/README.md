@@ -48,6 +48,12 @@ Results (12 cases, `evals/results/steer-2026-10-16-03-20.md`):
 
 **With the controller in the simulator (v2.4, 63 interviews, `2026-10-16-04-28-v2.4-control.md`) vs v2.3 (21):** every practice question asked, 69.4% → 100%; extra follow-ups after a complete answer, 3.29 → 1.18; resume topics per interview, 1.7 → 3.2; "come back to it" lines, 0 → 28. Follow-ups on vague answers fell from 74.3% to 62.3%, but split by follow-up budget, the rate while the story still had budget held (69.2% → 67.9%): the drop is the cap stopping drilling after two follow-ups, which the judge still counts as a miss. Costs: turns with two questions rose to 7.7%, almost all the spoken move-on line right after the model's own question, and only 38% of directives were followed (fewer as they pile up in one interview).
 
+## The interviewer's memory
+
+Deepgram's managed LLM keeps only the last 1,000 to 1,700 characters of the conversation, about two exchanges. Its `context_length` setting can raise that only with your own LLM endpoint. Measured with a fact said early and filler after it: remembered 2 of 2 at about 850 characters back, forgot 6 of 6 at about 1,750 or more. In a hand-played interview it asked "walk me through your background" and "tell me about a time you failed" twice, and denied having heard a story told six turns earlier.
+
+The system prompt doesn't count against that limit, so the app keeps the whole conversation in it (`thinkPrompt` in `lib/prompts.ts`, under Deepgram's 25,000-character prompt limit), refreshed with `UpdateThink` at the start of every candidate turn. In relay mode the server keeps its own copy of the conversation. Replaying the hand-played interview and then asking "what was the failure story I told you earlier?": recalled 3 of 3 with it, 0 of 3 without. The simulator does the same; `--memory off` turns it off for comparison. `npm run eval:relay` checks it through the relay.
+
 ## Attacks and edge cases
 
 Scripted tests through real Deepgram sessions with the production prompt (Deepgram only, cents each):

@@ -1,5 +1,6 @@
 import type { RawData, WebSocket as ClientSocket } from "ws";
 import { AGENT_URL } from "@/lib/agentSettings";
+import { thinkPrompt } from "@/lib/prompts";
 import { claimPart, getVoiceSession, latestPart, sessionDeadline } from "./sessions";
 
 // The voice relay: the browser talks to this server, and this server talks to
@@ -112,7 +113,7 @@ export async function runRelay(client: ClientSocket, o: RelayOptions): Promise<v
     if (msg.type === "RelaySteer") {
       // The stored think config, what's been appended (the close), and at most one directive.
       const directive = typeof msg.directive === "string" ? msg.directive.slice(0, MAX_TEXT) : null;
-      const prompt = [baseThink.prompt, ...appended, ...(directive ? [directive] : [])].join("\n\n");
+      const prompt = thinkPrompt(baseThink.prompt, appended, history, directive);
       upstream.send(JSON.stringify({ type: "UpdateThink", think: { ...baseThink, prompt } }));
       return;
     }
@@ -155,11 +156,16 @@ export async function runRelay(client: ClientSocket, o: RelayOptions): Promise<v
   // 2. Wait for the browser's RelayStart.
   const gotStart = await Promise.race([started.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), START_TIMEOUT_MS))]);
   if (!gotStart || !startMsg) return fail(RELAY_CLOSE.badStart, "The connection didn't start properly.");
-  const settings = continuationSettings(session.settings, startMsg);
+  const start: RelayStart = startMsg;
+  const settings = continuationSettings(session.settings, start);
   // For RelaySteer: the think config this connection started with, and what the
   // browser appends during it (UpdatePrompt).
-  const baseThink = (settings as { agent: { think: { prompt: string } } }).agent.think;
+  // (The same Settings without the conversation in the prompt: RelaySteer adds it fresh.)
+  const baseThink = (continuationSettings(session.settings, { ...start, history: [] }) as { agent: { think: { prompt: string } } }).agent.think;
   const appended: string[] = [];
+  // The conversation so far, for the prompt: what the browser carried over, then every
+  // line Deepgram reports. Kept here, not taken from the browser on each turn.
+  const history = continuationHistory(start);
 
   // 3. Open Deepgram with the server's key and the server's Settings.
   upstream = new WebSocket(AGENT_URL, ["token", o.apiKey]);
@@ -172,7 +178,7 @@ export async function runRelay(client: ClientSocket, o: RelayOptions): Promise<v
   up.onmessage = (ev) => {
     if (client.readyState !== client.OPEN) return;
     if (typeof ev.data === "string") {
-      noteServerMessage(ev.data, stats);
+      noteServerMessage(ev.data, stats, history);
       client.send(ev.data);
     } else {
       const buf = Buffer.from(ev.data as ArrayBuffer);
@@ -207,9 +213,7 @@ export function continuationSettings(stored: Record<string, unknown>, start: Rel
   const prompts = (start.prompts ?? []).filter((p) => typeof p === "string").slice(0, 5).map((p) => p.slice(0, MAX_TEXT));
   if (prompts.length) settings.agent.think.prompt += "\n\n" + prompts.join("\n\n");
 
-  const history = (start.history ?? [])
-    .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string" && m.content.trim())
-    .slice(-MAX_HISTORY);
+  const history = continuationHistory(start);
   // Keep the most recent turns within the character budget.
   let chars = 0;
   const kept: typeof history = [];
@@ -219,19 +223,37 @@ export function continuationSettings(stored: Record<string, unknown>, start: Rel
     kept.unshift(history[i]);
   }
   if (kept.length) {
-    // A continuation: no second greeting, and the model sees what was said.
+    // A continuation: no second greeting, and the model sees what was said: the
+    // recent turns as context, and all of it in the prompt (it only remembers a few).
     delete settings.agent.greeting;
     settings.agent.context = { messages: kept.map((m) => ({ type: "History", role: m.role, content: m.content.slice(0, MAX_TEXT) })) };
+    settings.agent.think.prompt = thinkPrompt(settings.agent.think.prompt, [], history);
   }
   return settings;
 }
 
-function noteServerMessage(raw: string, stats: { turns: number; latencies: number[] }) {
+type HistoryLine = { role: "user" | "assistant"; content: string };
+
+/** The conversation the browser carried over to this part, checked and capped. */
+function continuationHistory(start: RelayStart): HistoryLine[] {
+  return (start.history ?? [])
+    .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .slice(-MAX_HISTORY)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_TEXT) }));
+}
+
+function noteServerMessage(raw: string, stats: { turns: number; latencies: number[] }, history: HistoryLine[]) {
   if (!raw.includes("LatencyReport") && !raw.includes("ConversationText")) return;
   try {
-    const msg = JSON.parse(raw) as { type?: string; total_latency?: number };
+    const msg = JSON.parse(raw) as { type?: string; total_latency?: number; role?: string; content?: string };
     if (msg.type === "LatencyReport" && typeof msg.total_latency === "number") stats.latencies.push(msg.total_latency);
-    if (msg.type === "ConversationText") stats.turns++;
+    if (msg.type === "ConversationText") {
+      stats.turns++;
+      if ((msg.role === "user" || msg.role === "assistant") && typeof msg.content === "string") {
+        history.push({ role: msg.role, content: msg.content.slice(0, MAX_TEXT) });
+        if (history.length > MAX_HISTORY) history.shift();
+      }
+    }
   } catch {
     // not JSON
   }

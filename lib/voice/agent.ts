@@ -4,6 +4,7 @@ import type { TranscriptLine, TurnLatency, VoiceStats } from "../types";
 import { recording } from "./recording";
 import { readLevel } from "./level";
 import { AGENT_URL, type EndReason } from "@/lib/agentSettings";
+import { thinkPrompt } from "@/lib/prompts";
 
 export type AgentStatus =
   | "connecting"
@@ -103,6 +104,8 @@ export class InterviewAgent {
   /** The interviewer's think settings, to swap a directive in and out (UpdateThink). */
   private think: { prompt: string; [k: string]: unknown } | null = null;
   private steering = false;
+  /** How many directives were sent, to tell whether onTurnStart sent one. */
+  private steers = 0;
   /** An end_interview call waiting for the closing line to finish playing. */
   private pendingEnd: { id: string; reason: EndReason } | null = null;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
@@ -400,7 +403,10 @@ export class InterviewAgent {
         // The first start since their last turn; pauses mid-answer don't reset it.
         if (this.userTurnStartedAt === null) {
           this.userTurnStartedAt = Date.now();
+          const steers = this.steers;
           this.events.onTurnStart?.();
+          // No directive this turn: still bring the conversation in the prompt up to date.
+          if (this.steers === steers) this.remember();
         }
         this.events.onStatus(this.muted ? "muted" : "listening");
         break;
@@ -566,15 +572,25 @@ export class InterviewAgent {
     // UpdateThink replaces the prompt, so only this directive is in it, and it comes
     // out again after the next reply. (UpdatePrompt would pile directives up.)
     this.steering = true;
+    this.steers++;
     if (this.conn?.kind === "relay") return this.sendJson({ type: "RelaySteer", directive });
     if (!this.think) return this.addToPrompt(directive);
     this.sendThink(directive);
   }
 
-  /** The base prompt plus anything appended since, plus at most one directive. */
+  /**
+   * Refreshes the conversation kept in the prompt (see thinkPrompt in lib/prompts.ts):
+   * Deepgram's LLM only remembers the last couple of exchanges on its own.
+   */
+  private remember() {
+    if (this.conn?.kind === "relay") return this.sendJson({ type: "RelaySteer", directive: null });
+    this.sendThink(null);
+  }
+
+  /** The base prompt, anything appended since, the conversation so far, and at most one directive. */
   private sendThink(directive: string | null) {
     if (!this.think) return;
-    const prompt = [this.think.prompt, ...this.promptAdditions, ...(directive ? [directive] : [])].join("\n\n");
+    const prompt = thinkPrompt(this.think.prompt, this.promptAdditions, this.history, directive);
     this.sendJson({ type: "UpdateThink", think: { ...this.think, prompt } });
   }
 

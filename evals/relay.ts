@@ -17,8 +17,11 @@ import { FIXTURES } from "./fixtures";
 //   4. an interview past its time is refused
 //   5. a RelaySteer directive is followed (the relay builds the UpdateThink)
 //   6. a raw UpdateThink from the browser (a model swap) is dropped
+//   7. after several more turns, past what Deepgram's LLM remembers on its own, the
+//      interviewer still knows the fact from part 0 (the relay keeps the
+//      conversation in the prompt)
 //   npm run eval:relay
-// Needs DEEPGRAM_API_KEY and Upstash in .env.local. About 2 minutes of Deepgram time.
+// Needs DEEPGRAM_API_KEY and Upstash in .env.local. About 3 minutes of Deepgram time.
 
 const KEY = process.env.DEEPGRAM_API_KEY!;
 if (!KEY) throw new Error("DEEPGRAM_API_KEY is not set.");
@@ -135,6 +138,31 @@ async function main() {
   await new Promise((r) => setTimeout(r, 4000));
   const after = b.lines.filter((l) => l.role === "assistant").slice(before2).map((l) => l.content).join(" ");
   results.push(["raw UpdateThink from the browser is dropped", !/banana/i.test(after) && b.types.filter((t) => t === "ThinkUpdated").length === thinkAcks, after]);
+
+  // 7. Several long turns later, past the LLM's own memory, a RelaySteer refresh (as
+  // the browser sends at each turn) still carries the fact from part 0.
+  const FILLER = [
+    "At the internship I mostly worked on checkout and billing, paired with a senior engineer most days, and presented my project to about twenty people at the end of the summer.",
+    "The checkout page took about 3.1 seconds on mobile. I deferred two payment scripts and lazy loaded the card form, and it got to about 1.8 seconds, measured with Lighthouse and real user timing.",
+    "I also built the React front end of a refunds dashboard for the six-person support team, which replaced a spreadsheet they exported every day. Lookups went from five minutes to under one.",
+    "For billing I wrote about forty tests for the invoice proration module, and coverage across the service went from 38 to 61 percent with two teammates.",
+  ];
+  for (const f of FILLER) {
+    const n = b.lines.filter((l) => l.role === "assistant").length;
+    b.send({ type: "RelaySteer", directive: null });
+    await new Promise((r) => setTimeout(r, 500));
+    b.say(f);
+    await b.until(() => b.lines.filter((l) => l.role === "assistant").length > n, 45_000);
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  const before3 = b.lines.filter((l) => l.role === "assistant").length;
+  b.send({ type: "RelaySteer", directive: null });
+  await new Promise((r) => setTimeout(r, 800));
+  b.say("Sorry, quick check before we go on: what did I say at the very start was the hardest bug on my biggest project?");
+  await b.until(() => b.lines.filter((l) => l.role === "assistant").length > before3, 45_000);
+  await new Promise((r) => setTimeout(r, 3000));
+  const recalled = b.lines.filter((l) => l.role === "assistant").slice(before3).map((l) => l.content).join(" ");
+  results.push(["remembers the start after many turns", /double[- ]?charg/i.test(recalled), recalled]);
 
   // 3. An older part after a newer one opened.
   const stale = client(url(id, 0), { type: "RelayStart" });
