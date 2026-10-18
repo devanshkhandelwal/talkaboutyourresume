@@ -13,23 +13,27 @@
     "eval:endcall": "tsx evals/endcall.ts",
     "eval:closing": "tsx evals/closing.ts",
     "eval:attacks": "tsx evals/attacks.ts",
-    "eval:redteam": "tsx evals/redteam.ts"
+    "eval:redteam": "tsx evals/redteam.ts",
+    "eval:relay": "tsx evals/relay.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "@clerk/nextjs": "^7.9.15",
     "@neondatabase/serverless": "^1.2.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/functions": "^3.10.1",
     "mammoth": "^1.13.0",
     "next": "^15.5.27",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "unpdf": "^1.8.1"
+    "unpdf": "^1.8.1",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   },

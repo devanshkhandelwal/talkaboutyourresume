@@ -3,20 +3,38 @@ import { getInterviewer, INTERVIEWERS } from "@/lib/interviewers";
 import { buildInterviewerPrompt, isInterviewMode } from "@/lib/prompts";
 import { buildAgentSettings } from "@/lib/agentSettings";
 import { clientIp, takeDailyInterview, trackEvent } from "@/lib/limits";
+import { createVoiceSession, relayAvailable } from "@/lib/voice/sessions";
 import type { ResumeProfile } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 /**
- * Starts an interview: checks limits, mints a short-lived Deepgram token
- * for the browser, and returns the full voice agent Settings message.
- * The interviewer prompt is built here so it never ships in client code.
+ * Two ways to connect the browser to the interviewer:
+ * - relay (app/api/voice): the server holds the Deepgram key, builds the Settings and
+ *   enforces the time cap; nothing usable reaches the browser. Needs Redis and a
+ *   platform that upgrades WebSockets (Vercel, or `vercel dev` locally).
+ * - direct: a 60-second Deepgram token plus the Settings go to the browser, which
+ *   connects itself. Works with `next dev`, but a modified client can misuse the
+ *   token (lib/voiceWatch.ts watches for that).
+ */
+function relayMode(requested: boolean) {
+  // Rollout: VOICE_RELAY=1 sends every interview through the relay (closing the
+  // token gap: no Deepgram token reaches the browser); VOICE_RELAY=0 turns it off.
+  // Unset, it's opt-in per interview (/interview?relay=1) for testing on production.
+  if (process.env.VOICE_RELAY === "0") return false;
+  return (process.env.VOICE_RELAY === "1" || requested) && relayAvailable();
+}
+
+/**
+ * Starts an interview: checks limits, builds the voice agent Settings (the
+ * interviewer prompt never ships in client code), and returns how to connect:
+ * a relay session, or a short-lived Deepgram token plus the Settings.
  */
 export async function POST(req: NextRequest) {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return NextResponse.json({ error: "Voice is not configured." }, { status: 500 });
 
-  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; questions?: unknown; retryTopic?: string; mode?: unknown };
+  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; questions?: unknown; retryTopic?: string; mode?: unknown; relay?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -40,22 +58,6 @@ export async function POST(req: NextRequest) {
   const minutes = Number(process.env.MAX_INTERVIEW_MINUTES || 15);
   const retryTopic = body.retryTopic?.slice(0, 300);
   const sessionMinutes = retryTopic ? Math.min(4, minutes) : minutes;
-
-  let access_token: string;
-  try {
-    const grant = await fetch("https://api.deepgram.com/v1/auth/grant", {
-      method: "POST",
-      headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" },
-      // The token only needs to open the socket; the socket outlives it.
-      body: JSON.stringify({ ttl_seconds: 60 }),
-      cache: "no-store",
-    });
-    if (!grant.ok) throw new Error(`grant ${grant.status}: ${await grant.text()}`);
-    ({ access_token } = (await grant.json()) as { access_token: string });
-  } catch (err) {
-    console.error("[session] deepgram grant failed", err);
-    return NextResponse.json({ error: "Couldn't start the voice session. Please try again." }, { status: 502 });
-  }
 
   const interviewer = getInterviewer(body.interviewerId);
   // Questions the candidate wants to practice: at most 5 strings of up to 200 characters.
@@ -82,6 +84,36 @@ export async function POST(req: NextRequest) {
     greeting: greetings[Math.floor(Math.random() * greetings.length)],
   });
 
+  let voice: { kind: "relay"; sessionId: string } | { kind: "direct"; token: string; settings: typeof settings };
+  if (relayMode(body.relay === true)) {
+    const sessionId = crypto.randomUUID();
+    try {
+      await createVoiceSession(sessionId, { settings, startedAt: Date.now(), maxMs: sessionMinutes * 60_000 });
+    } catch (err) {
+      console.error("[session] couldn't create the voice session", err);
+      return NextResponse.json({ error: "Couldn't start the voice session. Please try again." }, { status: 502 });
+    }
+    voice = { kind: "relay", sessionId };
+  } else {
+    let access_token: string;
+    try {
+      const grant = await fetch("https://api.deepgram.com/v1/auth/grant", {
+        method: "POST",
+        headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" },
+        // The token only needs to open the socket; the socket outlives it.
+        body: JSON.stringify({ ttl_seconds: 60 }),
+        cache: "no-store",
+      });
+      if (!grant.ok) throw new Error(`grant ${grant.status}: ${await grant.text()}`);
+      ({ access_token } = (await grant.json()) as { access_token: string });
+    } catch (err) {
+      console.error("[session] deepgram grant failed", err);
+      return NextResponse.json({ error: "Couldn't start the voice session. Please try again." }, { status: 502 });
+    }
+
+    voice = { kind: "direct", token: access_token, settings };
+  }
+
   after(async () => {
     if (retryTopic) return trackEvent("retry_started");
     await trackEvent("interview_started");
@@ -91,8 +123,7 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({
-    token: access_token,
-    settings,
+    voice,
     maxMinutes: sessionMinutes,
     interviewer: { id: interviewer.id, name: interviewer.name },
   });

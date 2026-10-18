@@ -191,7 +191,8 @@ export default function InterviewPage() {
       const res = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, interviewerId, focusNote, questions, retryTopic, mode: store.getSetup()?.mode ?? "mixed" }),
+        // ?relay=1 tries the server-side voice relay for this interview (rollout testing).
+        body: JSON.stringify({ profile, interviewerId, focusNote, questions, retryTopic, mode: store.getSetup()?.mode ?? "mixed", relay: new URLSearchParams(window.location.search).get("relay") === "1" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't start the interview.");
@@ -246,7 +247,7 @@ export default function InterviewPage() {
         },
       });
       agentRef.current = agent;
-      await agent.start(data.token, data.settings);
+      await agent.start(data.voice);
       costLedger.startInterview();
       startedAt.current = Date.now();
       setPhase("live");
