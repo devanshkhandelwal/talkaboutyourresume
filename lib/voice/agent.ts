@@ -28,6 +28,19 @@ export type AgentEvents = {
 
 const OUTPUT_RATE = 24000;
 
+/** How /api/session says to connect: through our voice relay, or straight to Deepgram. */
+export type VoiceConnection =
+  | { kind: "relay"; sessionId: string }
+  | { kind: "direct"; token: string; settings: unknown };
+
+// A relay connection lives under 5 minutes (a Vercel Function on the Hobby plan).
+// Partway through, open the next one with the conversation so far, then switch
+// at a pause; switch regardless before the old one is cut off.
+const ROLLOVER_PREPARE_MS = 225_000;
+const ROLLOVER_FORCE_MS = 275_000;
+/** 100 ms of 16 kHz, 16-bit mono silence, to keep a waiting connection alive. */
+const SILENCE = new ArrayBuffer(3200);
+
 /**
  * Thin wrapper around Deepgram's Voice Agent websocket.
  * Mic audio goes up as 16 kHz linear16; the interviewer's voice comes
@@ -35,6 +48,16 @@ const OUTPUT_RATE = 24000;
  */
 export class InterviewAgent {
   private ws: WebSocket | null = null;
+  private conn: VoiceConnection | null = null;
+  // Relay hand-over: the connection number, the next connection while it warms up,
+  // what to replay to it, and the timers that schedule it.
+  private part = 0;
+  private next: WebSocket | null = null;
+  private nextReady = false;
+  private nextSilence: ReturnType<typeof setInterval> | null = null;
+  private rolloverTimers: ReturnType<typeof setTimeout>[] = [];
+  private history: { role: "user" | "assistant"; content: string }[] = [];
+  private promptAdditions: string[] = [];
   private ctx: AudioContext | null = null;
   private mic: MediaStream | null = null;
   private node: AudioWorkletNode | null = null;
@@ -67,8 +90,6 @@ export class InterviewAgent {
 
   /** The interviewer's think settings, to swap a directive in and out (UpdateThink). */
   private think: { prompt: string; [k: string]: unknown } | null = null;
-  /** Text appended to the prompt with UpdatePrompt (the close), kept across swaps. */
-  private promptAdditions: string[] = [];
   private steering = false;
   /** An end_interview call waiting for the closing line to finish playing. */
   private pendingEnd: { id: string; reason: EndReason } | null = null;
@@ -76,8 +97,11 @@ export class InterviewAgent {
 
   constructor(private events: AgentEvents) {}
 
-  async start(token: string, settings: unknown) {
-    const think = (settings as { agent?: { think?: { prompt?: string } } })?.agent?.think;
+  async start(conn: VoiceConnection) {
+    this.conn = conn;
+    // Direct mode carries the Settings, so the think config is here to swap directives
+    // in and out; through the relay, the server holds it and does the swap (RelaySteer).
+    const think = conn.kind === "direct" ? (conn.settings as { agent?: { think?: { prompt?: string } } })?.agent?.think : undefined;
     this.think = think && typeof think.prompt === "string" ? (think as { prompt: string }) : null;
     this.events.onStatus("connecting");
 
@@ -104,50 +128,155 @@ export class InterviewAgent {
 
     this.startRecording(source);
 
-    // Temporary tokens from /v1/auth/grant use the "bearer" subprotocol.
-    const ws = new WebSocket(AGENT_URL, ["bearer", token]);
-    ws.binaryType = "arraybuffer";
+    const ws = this.openSocket(0);
     this.ws = ws;
 
+    this.node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
+      // Keep sending while muted: the mic track is disabled, so this is silence, and
+      // Deepgram closes sessions that receive no audio for a while.
+      if (this.ws?.readyState !== WebSocket.OPEN) return;
+      this.ws.send(ev.data);
+    };
+  }
+
+  private relayUrl(part: number) {
+    const id = this.conn?.kind === "relay" ? this.conn.sessionId : "";
+    return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/voice?s=${id}&p=${part}`;
+  }
+
+  /**
+   * Opens connection `part`. Part 0 becomes the live connection when it opens; later
+   * parts (relay only) warm up in the background until switchToNext().
+   */
+  private openSocket(part: number): WebSocket {
+    const conn = this.conn!;
+    // Temporary tokens from /v1/auth/grant use the "bearer" subprotocol.
+    const ws = conn.kind === "direct" ? new WebSocket(AGENT_URL, ["bearer", conn.token]) : new WebSocket(this.relayUrl(part));
+    ws.binaryType = "arraybuffer";
+
     ws.onopen = () => {
-      this.openedAt = Date.now();
-      ws.send(JSON.stringify(settings));
-      this.keepAlive = setInterval(() => this.sendJson({ type: "KeepAlive" }), 8000);
+      if (conn.kind === "direct") ws.send(JSON.stringify(conn.settings));
+      // The relay builds the Settings itself; later parts carry the conversation over.
+      else ws.send(JSON.stringify(part === 0 ? { type: "RelayStart" } : { type: "RelayStart", history: this.history, prompts: this.promptAdditions }));
+      if (part === 0) {
+        this.openedAt = Date.now();
+        this.keepAlive = setInterval(() => this.sendJson({ type: "KeepAlive" }), 8000);
+        if (conn.kind === "relay") this.scheduleRollover();
+      } else {
+        // Nobody is talking to it yet: stream silence so it stays open.
+        this.nextSilence = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(SILENCE), 100);
+      }
     };
 
     ws.onmessage = (ev) => {
+      if (ws === this.next) {
+        // Warming up: only care that it's ready.
+        if (typeof ev.data === "string" && ev.data.includes('"SettingsApplied"')) {
+          this.nextReady = true;
+          this.trySwitch();
+        }
+        return;
+      }
+      if (ws !== this.ws) return;
       if (typeof ev.data === "string") this.handleMessage(ev.data);
       else this.playChunk(ev.data as ArrayBuffer);
     };
 
     ws.onerror = () => {
-      if (!this.ended) this.events.onError("Lost connection to the interviewer.");
+      if (ws === this.ws && !this.ended) this.events.onError("Lost connection to the interviewer.");
     };
 
     ws.onclose = (ev) => {
+      if (ws === this.next) {
+        // The next connection failed while warming up; try again shortly.
+        this.dropNext();
+        if (!this.ended) this.rolloverTimers.push(setTimeout(() => this.prepareNext(), 5000));
+        return;
+      }
+      if (ws !== this.ws) return;
       this.closeVoiceClock();
       if (!this.ended) {
         console.warn("[voice] connection closed", { code: ev.code, reason: ev.reason, wasClean: ev.wasClean });
-        // Deepgram usually sends an Error message explaining why before it closes; keep that on screen.
+        // Deepgram (or the relay) usually explains why before it closes; keep that on screen.
         this.events.onError(
-          this.serverError
-            ? `The voice service closed the interview: ${this.serverError}`
-            : ev.code === 1008 || ev.code === 4001
-              ? "The session couldn't be authorized."
-              : ev.reason
-                ? `The interview connection closed: ${ev.reason}`
-                : "The interview connection closed.",
+          ev.code === 4408
+            ? "This interview reached its time limit."
+            : this.serverError
+              ? `The voice service closed the interview: ${this.serverError}`
+              : ev.code === 1008 || ev.code === 4001
+                ? "The session couldn't be authorized."
+                : ev.reason
+                  ? `The interview connection closed: ${ev.reason}`
+                  : "The interview connection closed.",
         );
         this.events.onStatus("error");
       }
     };
+    return ws;
+  }
 
-    this.node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
-      // Keep sending while muted: the mic track is disabled, so this is silence, and
-      // Deepgram closes sessions that receive no audio for a while.
-      if (ws.readyState !== WebSocket.OPEN) return;
-      ws.send(ev.data);
-    };
+  private scheduleRollover() {
+    this.rolloverTimers.forEach(clearTimeout);
+    this.rolloverTimers = [
+      setTimeout(() => this.prepareNext(), ROLLOVER_PREPARE_MS),
+      setTimeout(() => this.switchToNext(), ROLLOVER_FORCE_MS),
+    ];
+  }
+
+  private prepareNext() {
+    if (this.ended || this.next || this.conn?.kind !== "relay") return;
+    this.nextReady = false;
+    this.next = this.openSocket(this.part + 1);
+  }
+
+  /** Switch when it won't cut anyone off: the interviewer had the last word and finished. */
+  private trySwitch() {
+    if (!this.nextReady || this.ended) return;
+    const quiet =
+      !this.agentSpeaking &&
+      !this.agentThinking &&
+      this.userTurnStartedAt === null &&
+      !this.pendingClose &&
+      this.history.at(-1)?.role === "assistant";
+    if (quiet) this.switchToNext();
+    else this.rolloverTimers.push(setTimeout(() => this.trySwitch(), 500));
+  }
+
+  private switchToNext() {
+    const next = this.next;
+    if (!next || !this.nextReady || this.ended) return;
+    const old = this.ws;
+    if (this.nextSilence) clearInterval(this.nextSilence);
+    this.nextSilence = null;
+    this.next = null;
+    this.nextReady = false;
+    this.ws = next;
+    this.part += 1;
+    this.scheduleRollover();
+    if (old) {
+      old.onmessage = old.onclose = old.onerror = null;
+      try {
+        old.close(1000);
+      } catch {
+        // already closed
+      }
+    }
+  }
+
+  private dropNext() {
+    if (this.nextSilence) clearInterval(this.nextSilence);
+    this.nextSilence = null;
+    const next = this.next;
+    this.next = null;
+    this.nextReady = false;
+    if (next) {
+      next.onmessage = next.onclose = next.onerror = null;
+      try {
+        next.close(1000);
+      } catch {
+        // already closed
+      }
+    }
   }
 
   /** Records the mic and the interviewer's voice as one track, in memory only. */
@@ -222,10 +351,12 @@ export class InterviewAgent {
         // The interviewer replied: a directive is spent, so swap it back out.
         if (msg.role === "assistant" && this.steering) {
           this.steering = false;
-          this.sendThink(null);
+          if (this.conn?.kind === "relay") this.sendJson({ type: "RelaySteer", directive: null });
+          else this.sendThink(null);
         }
         if (msg.role && msg.content) {
           const line: TranscriptLine = { role: msg.role, content: msg.content };
+          this.history.push({ role: msg.role, content: msg.content });
           if (msg.role === "user" && this.userTurnStartedAt !== null) {
             line.speakMs = Date.now() - this.userTurnStartedAt;
             this.userTurnStartedAt = null;
@@ -276,6 +407,8 @@ export class InterviewAgent {
           if (this.pendingClose) this.flushClose();
           // If the interviewer just said its closing line, hang up shortly after.
           if (this.pendingEnd) this.scheduleEnd(600);
+          // ...and a good moment to move to the next relay connection, if one is waiting.
+          this.trySwitch();
         }, wait);
         break;
       }
@@ -308,6 +441,9 @@ export class InterviewAgent {
           this.pendingEnd = null;
           if (this.endTimer) clearTimeout(this.endTimer);
         }
+        break;
+      case "RelayError":
+        this.serverError = msg.description || null;
         break;
       case "Error":
         console.warn("[voice] Deepgram error", msg);
@@ -407,8 +543,9 @@ export class InterviewAgent {
   steer(directive: string) {
     // UpdateThink replaces the prompt, so only this directive is in it, and it comes
     // out again after the next reply. (UpdatePrompt would pile directives up.)
-    if (!this.think) return this.addToPrompt(directive);
     this.steering = true;
+    if (this.conn?.kind === "relay") return this.sendJson({ type: "RelaySteer", directive });
+    if (!this.think) return this.addToPrompt(directive);
     this.sendThink(directive);
   }
 
@@ -476,6 +613,8 @@ export class InterviewAgent {
     this.closeVoiceClock();
     if (this.keepAlive) clearInterval(this.keepAlive);
     if (this.endTimer) clearTimeout(this.endTimer);
+    this.rolloverTimers.forEach(clearTimeout);
+    this.dropNext();
     this.stopPlayback();
     this.node?.disconnect();
     if (this.recorder?.state === "recording") this.recorder.stop();

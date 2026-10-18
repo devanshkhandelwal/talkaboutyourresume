@@ -15,7 +15,8 @@ const TOKEN = upstashEnv("TOKEN");
 
 export const redisEnabled = Boolean(URL_ && TOKEN);
 
-async function redis(command: (string | number)[]): Promise<unknown> {
+/** One Upstash command, e.g. ["GET", key]. Returns null when Redis isn't configured. */
+export async function redis(command: (string | number)[]): Promise<unknown> {
   if (!redisEnabled) return null;
   const res = await fetch(URL_!, {
     method: "POST",
