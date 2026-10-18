@@ -22,6 +22,8 @@ const KEYS = {
   report: "tayr.report",
   /** Plain text of the resume, kept apart from the profile so it isn't sent with every request. */
   resumeText: "tayr.resumeText",
+  /** The answer to retry, set by the results page. Kept out of the URL so a link can't carry it. */
+  retry: "tayr.retry",
 } as const;
 
 function read<T>(key: string): T | null {
@@ -56,4 +58,6 @@ export const store = {
   setSession: (s: InterviewSession) => write(KEYS.session, s),
   getReport: () => read<FeedbackReport>(KEYS.report),
   setReport: (r: FeedbackReport | null) => write(KEYS.report, r),
+  getRetry: () => read<string>(KEYS.retry),
+  setRetry: (t: string | null) => write(KEYS.retry, t),
 };

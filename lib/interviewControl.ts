@@ -146,6 +146,16 @@ export function isRepeat(text: string, earlier: string[]): boolean {
   return earlier.some((e) => overlap(content(e), said) >= 0.6);
 }
 
+/**
+ * "You already asked me that" only counts if the interviewer really did: its last
+ * question overlaps an earlier one in the same story. Otherwise a candidate could
+ * say it to skip any follow-up, so the claim is treated as a dodge.
+ */
+export function checkRepeatClaim(grade: { grade: AnswerGrade; missing: string[] }, question: string, earlier: string[]) {
+  if (grade.grade !== "repeated" || isRepeat(question, earlier)) return grade;
+  return { grade: "dodged" as const, missing: ["an answer to a question they hadn't answered yet"] };
+}
+
 // ---------------------------------------------------------------------------
 // The controller's state and its decision after each candidate answer.
 
@@ -359,7 +369,11 @@ export class InterviewController {
 
   /** The candidate's answer, once transcribed. */
   onCandidate(text: string) {
-    const grade = gradeAnswer(text, this.lastQuestion, { warmup: this.s.story === "warmup", said: this.said });
+    const grade = checkRepeatClaim(
+      gradeAnswer(text, this.lastQuestion, { warmup: this.s.story === "warmup", said: this.said }),
+      this.lastQuestion,
+      this.s.storyQuestions.slice(0, -1),
+    );
     for (const n of numbersIn(text)) this.said.add(n);
     const action = decide(this.s, grade, this.context());
     if (action.kind === "move_on" && action.to.kind === "revisit") this.s.revisited.add(action.to.note.story);

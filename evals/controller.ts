@@ -1,4 +1,5 @@
 import {
+  checkRepeatClaim,
   classifyQuestion,
   decide,
   gradeAnswer,
@@ -60,7 +61,7 @@ export function replay(rec: Recorded, policy: FollowUpPolicy) {
       onInterviewerTurn(s, line.text, kind);
       return;
     }
-    const grade = gradeAnswer(line.text, lastQuestion, { warmup: i < WARMUP_LINES, said });
+    const grade = checkRepeatClaim(gradeAnswer(line.text, lastQuestion, { warmup: i < WARMUP_LINES, said }), lastQuestion, s.storyQuestions.slice(0, -1));
     for (const x of numbersIn(line.text)) said.add(x);
     const nextUnasked = practice.findIndex((q) => !s.asked.has(q));
     const practiceDue = nextUnasked >= 0 && i >= (PRACTICE_DEADLINES[nextUnasked] ?? Infinity);

@@ -292,7 +292,8 @@ export class InterviewAgent {
           }
           let reason: EndReason = "candidate_asked";
           try {
-            if (JSON.parse(f.arguments ?? "{}").reason === "abusive") reason = "abusive";
+            const r = JSON.parse(f.arguments ?? "{}").reason;
+            if (r === "abusive" || r === "wellbeing") reason = r;
           } catch {
             // keep the default
           }
