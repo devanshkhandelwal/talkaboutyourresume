@@ -54,6 +54,12 @@ Deepgram's managed LLM keeps only the last 1,000 to 1,700 characters of the conv
 
 The system prompt doesn't count against that limit, so the app keeps the whole conversation in it (`thinkPrompt` in `lib/prompts.ts`, under Deepgram's 25,000-character prompt limit), refreshed with `UpdateThink` at the start of every candidate turn. In relay mode the server keeps its own copy of the conversation. Replaying the hand-played interview and then asking "what was the failure story I told you earlier?": recalled 3 of 3 with it, 0 of 3 without. The simulator does the same; `--memory off` turns it off for comparison. `npm run eval:relay` checks it through the relay.
 
+## The direct-mode token
+
+Deepgram re-checks the browser's temporary token on every `UpdateThink`, not just when the socket opens. With a 60-second token, every direct-mode interview since the conversation moved into the prompt (#49) ended 60 to 100 seconds in with "Invalid credentials." (`INVALID_SETTINGS`). An `InjectUserMessage` past the TTL still works; only `UpdateThink` fails. The token now lasts the interview's time cap plus two minutes (`lib/voice/token.ts`).
+
+`npm run eval:token` opens two sessions the way the browser does, waits 70 seconds (`--wait`), then sends `UpdateThink` and a user message: the app's token must get `ThinkUpdated` and a reply, and a 60-second token should still fail (if it stops failing, Deepgram changed). Deepgram only, a few cents.
+
 ## Attacks and edge cases
 
 Scripted tests through real Deepgram sessions with the production prompt (Deepgram only, cents each):

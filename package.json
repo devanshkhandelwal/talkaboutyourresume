@@ -14,7 +14,8 @@
     "eval:closing": "tsx evals/closing.ts",
     "eval:attacks": "tsx evals/attacks.ts",
     "eval:redteam": "tsx evals/redteam.ts",
-    "eval:relay": "tsx evals/relay.ts"
+    "eval:relay": "tsx evals/relay.ts",
+    "eval:token": "tsx evals/token.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
