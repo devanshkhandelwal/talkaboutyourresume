@@ -56,7 +56,7 @@ flowchart LR
   S & R & F -.->|counts| U[("Upstash Redis")]
 ```
 
-- **The server never sees your audio.** `/api/session` exchanges the Deepgram key for a token that expires in 60 seconds; the browser opens the voice WebSocket with it directly. The real key never leaves the server.
+- **The server never sees your audio.** `/api/session` exchanges the Deepgram key for a temporary token that expires two minutes after the interview's time limit; the browser opens the voice WebSocket with it directly. The real key never leaves the server.
 - **Reliable JSON from Claude.** `askJson` in `lib/claude.ts` has Claude answer by calling a tool whose input schema is the exact shape needed, so routes get parsed, typed objects.
 - **Gapless, interruptible audio.** An AudioWorklet (`public/mic-processor.js`) turns the mic into 16 kHz PCM off the main thread; replies are scheduled back to back on the audio clock and all stop at once on barge-in.
 - **The app drives the flow; the model words it.** Told to "wrap up", the model kept digging (0 of 4 closed in tests), so the app makes the interviewer say the closing line at the next pause (`InjectAgentMessage`) and adds closing rules (`UpdatePrompt`, which appends); a goodbye line is the fallback. One Settings builder (`lib/agentSettings.ts`) serves the app and the evals.

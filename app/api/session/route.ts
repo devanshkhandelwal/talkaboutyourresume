@@ -4,6 +4,7 @@ import { buildInterviewerPrompt, isInterviewMode } from "@/lib/prompts";
 import { buildAgentSettings } from "@/lib/agentSettings";
 import { clientIp, takeDailyInterview, trackEvent } from "@/lib/limits";
 import { createVoiceSession, relayAvailable } from "@/lib/voice/sessions";
+import { directTokenTtl, grantDeepgramToken } from "@/lib/voice/token";
 import type { ResumeProfile } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -13,9 +14,9 @@ export const runtime = "nodejs";
  * - relay (app/api/voice): the server holds the Deepgram key, builds the Settings and
  *   enforces the time cap; nothing usable reaches the browser. Needs Redis and a
  *   platform that upgrades WebSockets (Vercel, or `vercel dev` locally).
- * - direct: a 60-second Deepgram token plus the Settings go to the browser, which
- *   connects itself. Works with `next dev`, but a modified client can misuse the
- *   token (lib/voiceWatch.ts watches for that).
+ * - direct: a Deepgram token that lasts the interview, plus the Settings, go to the
+ *   browser, which connects itself. Works with `next dev`, but a modified client can
+ *   misuse the token (lib/voiceWatch.ts watches for that).
  */
 function relayMode(requested: boolean) {
   // Rollout: VOICE_RELAY=1 sends every interview through the relay (closing the
@@ -28,7 +29,7 @@ function relayMode(requested: boolean) {
 /**
  * Starts an interview: checks limits, builds the voice agent Settings (the
  * interviewer prompt never ships in client code), and returns how to connect:
- * a relay session, or a short-lived Deepgram token plus the Settings.
+ * a relay session, or a Deepgram token that lasts the interview plus the Settings.
  */
 export async function POST(req: NextRequest) {
   const key = process.env.DEEPGRAM_API_KEY;
@@ -97,15 +98,7 @@ export async function POST(req: NextRequest) {
   } else {
     let access_token: string;
     try {
-      const grant = await fetch("https://api.deepgram.com/v1/auth/grant", {
-        method: "POST",
-        headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" },
-        // The token only needs to open the socket; the socket outlives it.
-        body: JSON.stringify({ ttl_seconds: 60 }),
-        cache: "no-store",
-      });
-      if (!grant.ok) throw new Error(`grant ${grant.status}: ${await grant.text()}`);
-      ({ access_token } = (await grant.json()) as { access_token: string });
+      access_token = await grantDeepgramToken(key, directTokenTtl(sessionMinutes));
     } catch (err) {
       console.error("[session] deepgram grant failed", err);
       return NextResponse.json({ error: "Couldn't start the voice session. Please try again." }, { status: 502 });

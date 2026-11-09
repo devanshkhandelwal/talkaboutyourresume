@@ -1,10 +1,11 @@
 import { thinkModel } from "./agentSettings";
 
 // Watches the Deepgram account for voice-agent sessions this app didn't start.
-// The browser gets a short-lived Deepgram token and sends the session Settings
-// itself, so a modified client could use a token to run any agent configuration,
-// for as long as it likes, on this account (Deepgram's tokens can't be locked to a
-// stored configuration; the full fix is a server-side relay). Until then, this
+// In direct mode the browser gets a Deepgram token that lasts the interview (up to
+// MAX_INTERVIEW_MINUTES + 2) and sends the session Settings itself, so a modified
+// client could use a token to open agent sessions with any configuration, each for
+// as long as it likes, on this account (Deepgram's tokens can't be locked to a
+// stored configuration; the relay, VOICE_RELAY=1, closes that gap). Until it's on, this
 // reads Deepgram's own request log and flags sessions that don't look like ours.
 // Shown on /stats. Server only: it uses the billing key.
 
