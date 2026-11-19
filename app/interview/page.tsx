@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
@@ -10,13 +10,19 @@ import { costLedger } from "@/lib/cost";
 import { MicCheck } from "@/lib/voice/level";
 import { getInterviewer } from "@/lib/interviewers";
 import { DEFAULT_POLICY, InterviewController } from "@/lib/interviewControl";
-import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, SILENCE, SILENCE_LINES } from "@/lib/prompts";
+import { CLOSING_LINE, CLOSING_PROMPT, GOODBYE, GOODBYE_LINE, RESUME_FAILED_PROMPT, SILENCE, SILENCE_LINES, resumeArrivedPrompt, type InterviewMode } from "@/lib/prompts";
+import { IDLE, pendingResume } from "@/lib/pendingResume";
 import { store } from "@/lib/store";
 import { InterviewAgent, type AgentStatus } from "@/lib/voice/agent";
 import type { InterviewSession, ResumeProfile, TranscriptLine } from "@/lib/types";
 
+/** What the interviewer's prompt knows about the resume: it has it, it's still coming, or it's not coming. */
+type ResumeInPrompt = "yes" | "waiting" | "none";
+
 
 type Phase = "lobby" | "starting" | "live" | "ending";
+
+const topicsOf = (p: ResumeProfile) => p.topics.map((t) => ({ id: t.id ?? t.title, title: t.title, claim: t.claim }));
 
 /** The app's own lines for a quiet candidate, to tell them apart from the interviewer's replies. */
 const silenceLines = new Set<string>(Object.values(SILENCE_LINES));
@@ -28,6 +34,8 @@ export default function InterviewPage() {
   const [questions, setQuestions] = useState<string[]>([]);
   const [retryTopic, setRetryTopic] = useState<string | undefined>();
   const [loaded, setLoaded] = useState(false);
+  // The resume may still be being read when the interview starts (see app/setup/page.tsx).
+  const pending = useSyncExternalStore(pendingResume.subscribe, pendingResume.get, () => IDLE);
 
   const [phase, setPhase] = useState<Phase>("lobby");
   const [status, setStatus] = useState<AgentStatus>("connecting");
@@ -58,6 +66,9 @@ export default function InterviewPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camStream = useRef<MediaStream | null>(null);
   const micCheckRef = useRef<MicCheck | null>(null);
+  const controllerRef = useRef<InterviewController | null>(null);
+  const resumeInPrompt = useRef<ResumeInPrompt>("yes");
+  const modeRef = useRef<InterviewMode>("mixed");
 
   useEffect(() => {
     setProfile(store.getProfile());
@@ -71,6 +82,29 @@ export default function InterviewPage() {
     if (retry) setRetryTopic(retry.slice(0, 300));
     setLoaded(true);
   }, []);
+
+  // The resume finished being read (maybe after the interview began).
+  useEffect(() => {
+    if (pending.status === "idle") setProfile(store.getProfile());
+  }, [pending.status]);
+
+  // The interview started before the resume was read: give the interviewer the resume
+  // when it's ready, or tell it there isn't one. UpdatePrompt works with the direct
+  // connection and the relay alike (the relay carries it over its hand-offs).
+  useEffect(() => {
+    const agent = agentRef.current;
+    if (phase !== "live" || !agent || resumeInPrompt.current !== "waiting" || wrapping.current) return;
+    const ready = store.getProfile();
+    if (ready) {
+      resumeInPrompt.current = "yes";
+      agent.addToPrompt(resumeArrivedPrompt(ready, modeRef.current));
+      if (modeRef.current !== "general") controllerRef.current?.setTopics(topicsOf(ready));
+    } else if (pending.status === "error") {
+      resumeInPrompt.current = "none";
+      modeRef.current = "general";
+      agent.addToPrompt(RESUME_FAILED_PROMPT);
+    }
+  }, [phase, profile, pending.status]);
 
   // Load the feedback screen ahead of time, so ending the interview switches instantly.
   useEffect(() => {
@@ -175,7 +209,15 @@ export default function InterviewPage() {
   }
 
   async function join() {
-    if (!profile) return;
+    // The resume may not be done being read: the interview starts anyway and gets it when it is.
+    const ready = store.getProfile();
+    const reading = pendingResume.get().status === "reading";
+    const failed = !ready && pendingResume.get().status === "error";
+    if (!ready && !reading && !failed) return;
+    resumeInPrompt.current = ready ? "yes" : reading ? "waiting" : "none";
+    // With no resume and none coming, the only interview left is the general one.
+    const mode: InterviewMode = failed ? "general" : (store.getSetup()?.mode ?? "mixed");
+    modeRef.current = mode;
     // Full screen needs the click itself, so ask before anything async.
     if (document.fullscreenEnabled && !document.fullscreenElement) {
       void document.documentElement.requestFullscreen().catch(() => {});
@@ -192,25 +234,25 @@ export default function InterviewPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // ?relay=1 tries the server-side voice relay for this interview (rollout testing).
-        body: JSON.stringify({ profile, interviewerId, questions, retryTopic, mode: store.getSetup()?.mode ?? "mixed", relay: new URLSearchParams(window.location.search).get("relay") === "1" }),
+        body: JSON.stringify({ profile: ready, noResume: failed, interviewerId, questions, retryTopic, mode, relay: new URLSearchParams(window.location.search).get("relay") === "1" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't start the interview.");
 
       // The app decides when to move on and the model words it (lib/interviewControl.ts).
       // Not for a retry, which digs into one answer on purpose.
-      const mode = store.getSetup()?.mode ?? "mixed";
       const persona = getInterviewer(interviewerId);
       const controller = retryTopic
         ? null
         : new InterviewController({
             policy: persona.followUps ?? DEFAULT_POLICY,
             practice: mode === "resume" ? [] : questions.map((q) => q.replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 5),
-            topics: mode === "general" ? [] : profile.topics.map((t) => ({ id: t.id ?? t.title, title: t.title, claim: t.claim })),
+            topics: mode === "general" || !ready ? [] : topicsOf(ready),
             // The last five minutes: time to come back to an answer that stayed vague.
             nearEnd: () => maxMsRef.current > 0 && Date.now() - startedAt.current > maxMsRef.current - 5 * 60_000,
           });
 
+      controllerRef.current = controller;
       const agent = new InterviewAgent({
         onStatus: setStatus,
         onTurnStart: () => {
@@ -318,7 +360,9 @@ export default function InterviewPage() {
 
   if (!loaded) return null;
 
-  if (!profile) {
+  // Nothing to go on: no resume, none being read, and no failed read to fall back from.
+  const hasResume = Boolean(profile) || pending.status !== "idle" || Boolean(store.getProfile());
+  if (!hasResume) {
     return (
       <main className="narrow" style={{ paddingTop: 64, paddingBottom: 64 }}>
         <h1 className="display h2">Upload your resume first</h1>
@@ -398,6 +442,11 @@ export default function InterviewPage() {
             <p style={{ margin: 0, color: "var(--inv-ink-3)", maxWidth: 420 }}>
               {retryTopic ? "A short retry of one answer." : "Your interviewer is ready."} Find a quiet spot and use headphones if you can.
             </p>
+            {pending.status === "error" && !profile && (
+              <p role="status" style={{ margin: 0, color: "var(--inv-ink-2)", maxWidth: 420, fontSize: 14 }}>
+                We couldn&apos;t read your resume, so you&apos;ll get general questions.
+              </p>
+            )}
             <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
               {micCheck === "on" ? (
                 <span style={{ ...btn(false), cursor: "default", fontWeight: 500, boxShadow: "none" }}>

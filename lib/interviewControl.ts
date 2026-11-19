@@ -332,6 +332,11 @@ export class InterviewController {
     return this.s.notes;
   }
 
+  /** The resume finished being read after the interview began: its topics can be moved to from now on. */
+  setTopics(topics: Topic[]) {
+    this.o = { ...this.o, topics };
+  }
+
   private context(): DecideContext {
     const deadlines = this.o.practiceDeadlines ?? [8, 14];
     const next = this.o.practice.findIndex((q) => !this.s.asked.has(q));

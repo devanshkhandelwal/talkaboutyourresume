@@ -12,6 +12,8 @@ export type CostLedger = {
   claude: { label: "resume" | "feedback"; usage: ClaudeUsage }[];
   /** Set once an interview has started, so the next one with any spend starts a fresh ledger. */
   interviewStarted: boolean;
+  /** When that interview started, so a resume that finishes being read during it is counted in it. */
+  interviewStartedAt?: number;
 };
 
 const KEY = "tayr.cost";
@@ -37,8 +39,17 @@ function write(l: CostLedger) {
 
 export const costLedger = {
   get: read,
-  /** A new resume was read: start over with just its cost. */
-  resetForResume(usage: ClaudeUsage | undefined) {
+  /**
+   * A new resume was read: start over with just its cost. The exception is a resume
+   * that was still being read when an interview began (`uploadStartedAt` is before it):
+   * it belongs to that interview, so it's added without wiping what the call has spent.
+   */
+  resetForResume(usage: ClaudeUsage | undefined, uploadStartedAt = Date.now()) {
+    const l = read();
+    if (l.interviewStartedAt !== undefined && l.interviewStartedAt >= uploadStartedAt) {
+      write(usage ? { ...l, claude: [...l.claude, { label: "resume", usage }] } : l);
+      return;
+    }
     write({ ...EMPTY, claude: usage ? [{ label: "resume", usage }] : [] });
   },
   /**
@@ -48,7 +59,8 @@ export const costLedger = {
   startInterview() {
     const l = read();
     const spent = l.voiceMs > 0 || l.claude.some((c) => c.label === "feedback");
-    write(l.interviewStarted && spent ? { ...EMPTY, interviewStarted: true } : { ...l, interviewStarted: true });
+    const at = Date.now();
+    write(l.interviewStarted && spent ? { ...EMPTY, interviewStarted: true, interviewStartedAt: at } : { ...l, interviewStarted: true, interviewStartedAt: at });
   },
   addVoiceMs(ms: number) {
     const l = read();

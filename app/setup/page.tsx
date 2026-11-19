@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SiteHeader } from "@/components/Chrome";
@@ -21,7 +21,6 @@ type StepId = "mode" | "who" | "q" | "go";
 
 export default function SetupPage() {
   const router = useRouter();
-  const replaceId = useId();
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [who, setWho] = useState("manager");
@@ -35,8 +34,6 @@ export default function SetupPage() {
   const [when, setWhen] = useState<Date | null>(null);
   const [added, setAdded] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  // Set when Start is clicked while the resume is still being read.
-  const [waiting, setWaiting] = useState(false);
   const pending = useSyncExternalStore(pendingResume.subscribe, pendingResume.get, () => IDLE);
 
   // "Just my resume" has no question list, so it has one screen fewer.
@@ -71,14 +68,7 @@ export default function SetupPage() {
   // Pick up the profile once a background read finishes.
   useEffect(() => {
     if (pending.status === "idle") setProfile(store.getProfile());
-    if (pending.status === "error") setWaiting(false);
   }, [pending.status]);
-
-  // Start clicked early: go as soon as the resume is ready.
-  useEffect(() => {
-    if (waiting && pending.status === "idle" && profile) start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waiting, pending.status, profile]);
 
   function goto(id: string) {
     setScheduling(false);
@@ -117,11 +107,9 @@ export default function SetupPage() {
     pendingResume.start(file, uploadResume);
   }
 
-  function onStart() {
-    if (pending.status === "reading") setWaiting(true);
-    else start();
-  }
-
+  // Start never waits for the resume: it keeps being read while the interview begins, and
+  // the interviewer gets it when it's ready (app/interview/page.tsx). If it can't be read,
+  // the interview is a general one.
   function start() {
     // Only planned answers that still have a question and some text.
     const kept = Object.fromEntries(questions.flatMap((q) => (plans[q]?.trim() ? [[q, plans[q].trim()]] : [])));
@@ -186,17 +174,11 @@ export default function SetupPage() {
               <StepHeading lede="Start now, or put it on your calendar for later.">Ready when you are</StepHeading>
               <div className="su-final">
                 <div>
-                  <Summary mode={mode} who={who} questions={questions} plans={plans} onGoto={goto} />
+                  <Summary mode={mode} who={who} questions={questions} plans={plans} onGoto={goto} resumeFailed={failed} onReplace={onReplace} />
                   {failed && (
-                    <div style={{ marginTop: 20 }}>
-                      <p className="error" role="alert">
-                        {fileError ?? (pending.status === "error" ? pending.message : "")} Try another file to start.
-                      </p>
-                      <label htmlFor={replaceId} className="btn btn-dark upload-btn" style={{ marginTop: 12 }}>
-                        Try another file
-                      </label>
-                      <input id={replaceId} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onReplace} />
-                    </div>
+                    <p className="su-reassure" role="alert">
+                      <b>We couldn&apos;t read your resume.</b> {fileError ?? (pending.status === "error" ? pending.message : "")} Try another file, or start now with general questions only.
+                    </p>
                   )}
                   {scheduling ? (
                     <Scheduler
@@ -212,18 +194,9 @@ export default function SetupPage() {
                   ) : (
                     <>
                       <div className="su-actions">
-                        <button type="button" className="btn btn-dark" onClick={onStart} disabled={failed || waiting} aria-busy={waiting}>
-                          {waiting ? (
-                            <>
-                              <span className="spinner" aria-hidden />
-                              Finishing your resume...
-                            </>
-                          ) : (
-                            <>
-                              Start interview
-                              <ArrowIcon />
-                            </>
-                          )}
+                        <button type="button" className="btn btn-dark" onClick={start}>
+                          {failed ? "Start with general questions" : "Start interview"}
+                          <ArrowIcon />
                         </button>
                         <button type="button" className="btn" onClick={openScheduler}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

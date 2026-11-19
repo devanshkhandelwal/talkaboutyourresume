@@ -32,6 +32,7 @@ export const pendingResume = {
   /** Starts reading a resume. A newer upload wins if two overlap. */
   start(file: File, upload: (f: File) => Promise<{ profile: ResumeProfile; usage?: ClaudeUsage; resumeText?: string }>) {
     const mine = ++generation;
+    const startedAt = Date.now();
     store.clearProfile();
     store.setReport(null);
     set({ status: "reading", fileName: file.name });
@@ -40,7 +41,7 @@ export const pendingResume = {
         if (mine !== generation) return;
         store.setProfile(profile);
         store.setResumeText(resumeText ?? null);
-        costLedger.resetForResume(usage);
+        costLedger.resetForResume(usage, startedAt);
         set(IDLE);
       },
       (err: unknown) => {

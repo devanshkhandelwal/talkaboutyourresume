@@ -76,3 +76,6 @@
 .su-sched h2 { font-size: 1.5rem; margin-bottom: 14px; }
 .su-picked { margin: 22px 0 0; font-weight: 600; font-size: 18px; }
 .su-picked small { display: block; font-weight: 400; color: var(--ink-3); font-size: 14px; }
+.su-reassure { margin: 20px 0 0; padding: 12px 14px; border: 2px dashed var(--ink); border-radius: 10px; font-size: 15px; }
+.su-reassure b { font-weight: 600; }
+.su-chg:has(+ input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }

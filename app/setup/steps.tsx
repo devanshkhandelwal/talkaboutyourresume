@@ -311,7 +311,25 @@ export function InterviewerPreview({ who }: { who: string }) {
 }
 
 /** What you picked, with a way back to each answer. */
-export function Summary({ mode, who, questions, plans, onGoto }: { mode: InterviewMode; who: string; questions: string[]; plans: Record<string, string>; onGoto: (id: string) => void }) {
+export function Summary({
+  mode,
+  who,
+  questions,
+  plans,
+  onGoto,
+  resumeFailed,
+  onReplace,
+}: {
+  mode: InterviewMode;
+  who: string;
+  questions: string[];
+  plans: Record<string, string>;
+  onGoto: (id: string) => void;
+  /** The resume couldn't be read: the interview will be a general one. */
+  resumeFailed: boolean;
+  onReplace: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const replaceId = useId();
   const i = getInterviewer(who);
   const planned = questions.filter((q) => plans[q]?.trim()).length;
   const qText = mode === "resume" ? "Not in this mode" : questions.length ? `${questions.length} of ${MAX_QUESTIONS}${planned ? `, ${planned} planned` : ""}` : "None";
@@ -347,6 +365,19 @@ export function Summary({ mode, who, questions, plans, onGoto }: { mode: Intervi
             <button type="button" className="su-chg" onClick={() => onGoto("q")}>
               Change
             </button>
+          </span>
+        </li>
+      )}
+      {resumeFailed && (
+        <li>
+          <span className="su-k">Resume</span>
+          <span className="su-v">
+            Couldn&apos;t read it
+            <small>General questions only</small>
+            <label htmlFor={replaceId} className="su-chg" style={{ cursor: "pointer" }}>
+              Try another file
+            </label>
+            <input id={replaceId} type="file" accept=".pdf,.docx" className="visually-hidden" onChange={onReplace} />
           </span>
         </li>
       )}
