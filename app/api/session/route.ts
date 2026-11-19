@@ -35,13 +35,17 @@ export async function POST(req: NextRequest) {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return NextResponse.json({ error: "Voice is not configured." }, { status: 500 });
 
-  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; questions?: unknown; retryTopic?: string; mode?: unknown; relay?: unknown };
+  let body: { profile?: ResumeProfile; interviewerId?: string; questions?: unknown; retryTopic?: string; mode?: unknown; noResume?: unknown; relay?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
-  if (!body.profile?.topics?.length) {
+  // No profile is fine: the resume may still be being read (the browser adds it to the
+  // interview when it's done), or it couldn't be read and this is a general interview.
+  // A profile that is sent must be a real one.
+  const profile = body.profile ?? null;
+  if (profile && !profile.topics?.length) {
     return NextResponse.json({ error: "Upload your resume first." }, { status: 400 });
   }
   if (!INTERVIEWERS.some((i) => i.id === body.interviewerId)) {
@@ -65,11 +69,12 @@ export async function POST(req: NextRequest) {
   const questions = Array.isArray(body.questions)
     ? body.questions.filter((q): q is string => typeof q === "string").map((q) => q.replace(/\s+/g, " ").trim().slice(0, 200)).filter(Boolean).slice(0, 5)
     : [];
-  const mode = isInterviewMode(body.mode) ? body.mode : "mixed";
+  // Without a resume, and none coming, the only interview left is the general one.
+  const mode = !profile && body.noResume === true ? "general" : isInterviewMode(body.mode) ? body.mode : "mixed";
   const prompt = buildInterviewerPrompt({
     interviewer,
-    profile: body.profile,
-    focusNote: (body.focusNote ?? "").slice(0, 1500),
+    profile,
+    noResume: body.noResume === true,
     questions,
     minutes: sessionMinutes,
     retryTopic,

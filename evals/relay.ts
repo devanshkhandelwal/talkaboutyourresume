@@ -75,7 +75,7 @@ function client(url: string, start: Record<string, unknown>) {
 async function main() {
   const fixture = FIXTURES[0];
   const interviewer = INTERVIEWERS[0];
-  const prompt = buildInterviewerPrompt({ interviewer, profile: fixture.profile, focusNote: "", questions: [], minutes: 15, mode: "mixed" });
+  const prompt = buildInterviewerPrompt({ interviewer, profile: fixture.profile, questions: [], minutes: 15, mode: "mixed" });
   const settings = buildAgentSettings({ interviewer, prompt, greeting: "Hi, thanks for joining. How's your day going?" });
 
   const id = crypto.randomUUID();

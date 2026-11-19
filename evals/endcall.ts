@@ -57,7 +57,7 @@ const SCENARIOS: { id: string; expect: "abusive" | "candidate_asked" | null; tur
 const WARNING = /\b(professional|respectful|respect|keep (it|this)|language|tone)\b/i;
 
 async function run(sc: (typeof SCENARIOS)[number]) {
-  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, focusNote: "", questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
+  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
   const dg = new DeepgramInterviewer();
   const said: string[] = [];
   let endedAt: number | null = null;

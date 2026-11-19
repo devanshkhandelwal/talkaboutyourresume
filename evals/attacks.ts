@@ -134,7 +134,7 @@ const questionsIn = (text: string) => (text.match(/[^.?!]*\?/g) ?? []).join(" ")
 
 async function attack(a: Attack) {
   const profile = a.flags ? { ...fixture.profile, flags: [...fixture.profile.flags, ...a.flags] } : fixture.profile;
-  const prompt = buildInterviewerPrompt({ interviewer: manager, profile, focusNote: "", questions: a.retry ? [] : PRACTICE_QUESTIONS, minutes: a.retry ? 4 : 15, retryTopic: a.retry, mode: "mixed" });
+  const prompt = buildInterviewerPrompt({ interviewer: manager, profile, questions: a.retry ? [] : PRACTICE_QUESTIONS, minutes: a.retry ? 4 : 15, retryTopic: a.retry, mode: "mixed" });
   const dg = new DeepgramInterviewer();
   const said: string[] = [];
   try {

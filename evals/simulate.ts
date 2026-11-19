@@ -120,7 +120,7 @@ export async function simulateInterview(o: SimOptions): Promise<SimResult> {
   const interviewer = getInterviewer(o.interviewerId);
   const profile =
     o.candidate.id === "adversarial" ? { ...o.fixture.profile, flags: [...o.fixture.profile.flags, INJECTED_FLAG] } : o.fixture.profile;
-  const basePrompt = buildInterviewerPrompt({ interviewer, profile, focusNote: "", questions: o.questions, minutes: 15, mode: o.mode });
+  const basePrompt = buildInterviewerPrompt({ interviewer, profile, questions: o.questions, minutes: 15, mode: o.mode });
   const greeting = interviewer.greetings[Math.floor(Math.random() * interviewer.greetings.length)];
   const candSystem = candidateSystem(o);
   const tokens = { interviewer: { input: 0, output: 0 }, candidate: { input: 0, output: 0 } };

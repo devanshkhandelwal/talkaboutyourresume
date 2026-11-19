@@ -7,7 +7,6 @@ export type SetupChoice = {
   interviewerId: string;
   /** What the interview focuses on; missing on older setups, which means "mixed". */
   mode?: import("./prompts").InterviewMode;
-  focusNote: string;
   questions?: string[];
   /** Planned answers, keyed by question. Never sent to the interviewer; only used to compare afterwards. */
   plans?: Record<string, string>;

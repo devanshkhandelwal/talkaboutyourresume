@@ -50,7 +50,7 @@ function pickCases(): Case[] {
 
 function sessionFor(c: Case) {
   const fixture = FIXTURES.find((f) => c.rec.id.startsWith(`${f.id}/`))!;
-  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, focusNote: "", questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
+  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
   const settings = buildAgentSettings({ interviewer: manager, prompt, greeting: "" }) as { agent: Record<string, unknown> };
   delete settings.agent.greeting;
   settings.agent.context = {
