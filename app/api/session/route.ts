@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return NextResponse.json({ error: "Voice is not configured." }, { status: 500 });
 
-  let body: { profile?: ResumeProfile; interviewerId?: string; focusNote?: string; questions?: unknown; retryTopic?: string; mode?: unknown; relay?: unknown };
+  let body: { profile?: ResumeProfile; interviewerId?: string; questions?: unknown; retryTopic?: string; mode?: unknown; relay?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -69,7 +69,6 @@ export async function POST(req: NextRequest) {
   const prompt = buildInterviewerPrompt({
     interviewer,
     profile: body.profile,
-    focusNote: (body.focusNote ?? "").slice(0, 1500),
     questions,
     minutes: sessionMinutes,
     retryTopic,

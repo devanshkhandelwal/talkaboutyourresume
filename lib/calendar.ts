@@ -70,15 +70,69 @@ export function icsFile(e: PracticeEvent): Blob {
   return new Blob([lines.map(fold).join("\r\n") + "\r\n"], { type: "text/calendar;charset=utf-8" });
 }
 
-/** Value for <input type="datetime-local">, in local time: tomorrow at the next whole hour. */
-export function defaultPracticeTime(now = new Date()): string {
-  const d = new Date(now);
-  d.setDate(d.getDate() + 1);
-  d.setHours(d.getHours() + 1, 0, 0, 0);
-  return toLocalInput(d);
+// --- Picking a time: whole days, start times every 15 minutes -------------------
+
+export const SLOT_STEP = 15;
+/** First and last start time of a day, in minutes after midnight (6:00 AM to 10:45 PM). */
+export const DAY_FIRST = 6 * 60;
+export const DAY_LAST = 22 * 60 + 45;
+export const PICKABLE_DAYS = 7;
+
+export type Period = "morning" | "afternoon" | "evening";
+export const PERIODS: Period[] = ["morning", "afternoon", "evening"];
+
+export function periodOf(minute: number): Period {
+  return minute < 12 * 60 ? "morning" : minute < 17 * 60 ? "afternoon" : "evening";
 }
 
-export function toLocalInput(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+export function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+/** Today and the next six days, at local midnight. */
+export function pickableDays(now = new Date()): Date[] {
+  return Array.from({ length: PICKABLE_DAYS }, (_, i) => {
+    const d = startOfDay(now);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+}
+
+/** Every start time of a day, in minutes after midnight. */
+export function dayMinutes(): number[] {
+  const out: number[] = [];
+  for (let m = DAY_FIRST; m <= DAY_LAST; m += SLOT_STEP) out.push(m);
+  return out;
+}
+
+/** The moment a start time on a day happens, in local time. */
+export function slotDate(day: Date, minute: number): Date {
+  const d = new Date(day);
+  d.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+  return d;
+}
+
+/** Times that have passed, or start within the next 15 minutes, can't be picked. */
+export function slotTaken(day: Date, minute: number, now = new Date()): boolean {
+  return slotDate(day, minute).getTime() <= now.getTime() + SLOT_STEP * 60_000;
+}
+
+/** "9:15 AM" */
+export function formatMinute(minute: number): string {
+  const h = Math.floor(minute / 60);
+  const m = minute % 60;
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** The first start time at least an hour away, or 9:00 AM tomorrow if today has none left. */
+export function defaultSlotTime(now = new Date()): Date {
+  const ahead = new Date(now.getTime() + 60 * 60_000);
+  const minute = Math.ceil((ahead.getHours() * 60 + ahead.getMinutes()) / SLOT_STEP) * SLOT_STEP;
+  const today = startOfDay(now);
+  if (ahead.toDateString() === now.toDateString() && minute >= DAY_FIRST && minute <= DAY_LAST) return slotDate(today, minute);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return slotDate(tomorrow, 9 * 60);
 }

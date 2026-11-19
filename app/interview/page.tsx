@@ -25,7 +25,6 @@ export default function InterviewPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
   const [interviewerId, setInterviewerId] = useState("manager");
-  const [focusNote, setFocusNote] = useState("");
   const [questions, setQuestions] = useState<string[]>([]);
   const [retryTopic, setRetryTopic] = useState<string | undefined>();
   const [loaded, setLoaded] = useState(false);
@@ -65,7 +64,6 @@ export default function InterviewPage() {
     const s = store.getSetup();
     if (s) {
       setInterviewerId(s.interviewerId);
-      setFocusNote(s.focusNote);
       setQuestions(s.questions ?? []);
     }
     // Only a retry this tab's results page set up; the URL just says "retry".
@@ -146,7 +144,6 @@ export default function InterviewPage() {
     camStream.current?.getTracks().forEach((t) => t.stop());
     store.setSession({
       interviewerId,
-      focusNote,
       retryTopic,
       startedAt: startedAt.current,
       endedAt: Date.now(),
@@ -159,7 +156,7 @@ export default function InterviewPage() {
     if (startedAt.current) navigator.sendBeacon?.("/api/track", new Blob([JSON.stringify({ event: "interview_ended" })], { type: "application/json" }));
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     router.push("/feedback");
-  }, [phase, interviewerId, focusNote, retryTopic, router]);
+  }, [phase, interviewerId, retryTopic, router]);
 
   const finishRef = useRef(finish);
   finishRef.current = finish;
@@ -195,7 +192,7 @@ export default function InterviewPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // ?relay=1 tries the server-side voice relay for this interview (rollout testing).
-        body: JSON.stringify({ profile, interviewerId, focusNote, questions, retryTopic, mode: store.getSetup()?.mode ?? "mixed", relay: new URLSearchParams(window.location.search).get("relay") === "1" }),
+        body: JSON.stringify({ profile, interviewerId, questions, retryTopic, mode: store.getSetup()?.mode ?? "mixed", relay: new URLSearchParams(window.location.search).get("relay") === "1" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't start the interview.");

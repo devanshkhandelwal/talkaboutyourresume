@@ -40,7 +40,7 @@ const cases = run.interviews
 
 async function trial(c: (typeof cases)[number], mode: Mode) {
   const fixture = FIXTURES.find((f) => c.id.startsWith(`${f.id}/`))!;
-  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, focusNote: "", questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
+  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
   const settings = buildAgentSettings({ interviewer: manager, prompt, greeting: "" }) as { agent: { greeting?: string; context?: unknown; think: { prompt: string; functions?: unknown } } };
   delete settings.agent.greeting;
   if (mode === "nofunc") delete settings.agent.think.functions;

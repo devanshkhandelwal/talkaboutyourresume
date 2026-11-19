@@ -124,7 +124,7 @@ async function judge(broken: string, transcript: Line[]) {
 
 async function attack(goalId: string, styleId: string) {
   const g = GOALS[goalId];
-  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, focusNote: "", questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
+  const prompt = buildInterviewerPrompt({ interviewer: manager, profile: fixture.profile, questions: PRACTICE_QUESTIONS, minutes: 15, mode: "mixed" });
   const dg = new DeepgramInterviewer();
   const transcript: Line[] = [];
   try {

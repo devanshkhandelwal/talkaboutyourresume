@@ -1,0 +1,16 @@
+/* Day chips, time-of-day tabs and 15-minute slots. Same 1-bit surfaces as .chip-btn and .pick. */
+.sp-day, .sp-period, .sp-slot {
+  background: var(--card); color: var(--ink); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); cursor: pointer;
+}
+.sp-day:active, .sp-period:active, .sp-slot:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.sp-day[aria-pressed="true"], .sp-period[aria-pressed="true"], .sp-slot[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+.sp-days { display: flex; flex-wrap: wrap; gap: 10px; }
+.sp-day { min-width: 76px; padding: 8px 12px; border-radius: 8px; text-align: center; line-height: 1.2; font-weight: 500; }
+.sp-day small { display: block; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.sp-day[aria-pressed="true"] small { color: var(--card); }
+.sp-periods { display: flex; gap: 10px; margin-top: 20px; }
+.sp-period { min-height: 40px; padding: 0 14px; border-radius: 8px; font-weight: 600; font-size: 15px; }
+.sp-day:disabled, .sp-period:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.sp-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-top: 16px; }
+.sp-slot { min-height: 42px; border-radius: 8px; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.sp-slot:disabled { border-style: dashed; color: var(--ink-3); box-shadow: none; cursor: not-allowed; text-decoration: line-through; }

@@ -82,7 +82,6 @@ export type FeedbackReport = {
 
 export type InterviewSession = {
   interviewerId: string;
-  focusNote: string;
   /** If set, this session retries a single answer */
   retryTopic?: string;
   startedAt: number;

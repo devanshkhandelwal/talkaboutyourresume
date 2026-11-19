@@ -188,7 +188,7 @@ export default function FeedbackPage() {
 
   function practiceWith(id: string) {
     const prev = store.getSetup();
-    store.setSetup({ interviewerId: id, focusNote: prev?.focusNote ?? "", questions: prev?.questions ?? [] });
+    store.setSetup({ interviewerId: id, questions: prev?.questions ?? [] });
     router.push("/setup");
   }
 
